@@ -14,12 +14,12 @@ export enum ItemStatus {
 export interface User {
   id: string;
   name: string;
-  collegeId: string;
-  email: string;
+  collegeId: string; // Maps to student_id in SQL
+  email: string;     // Maps to gmail in SQL
   phone: string;
   year: string;
   branch: string;
-  avatarUrl?: string;
+  avatarUrl?: string; // Maps to profile_photo in SQL
   notificationsEnabled: boolean;
 }
 
@@ -53,6 +53,7 @@ export interface Message {
   itemId: string;
   senderId: string;
   senderName: string;
+  senderRollNumber: string;
   text: string;
   timestamp: string;
 }
@@ -84,5 +85,6 @@ export interface Order {
   title: string;
   gmail: string;
   event_date: string;
+  message?: string;
   created_at?: string;
 }

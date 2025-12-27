@@ -34,33 +34,21 @@ const AppContent: React.FC = () => {
 
     const loadInitialData = async () => {
       try {
-        // Fetch from Supabase
         const fetchedItems = await supabaseService.fetchItems();
         const fetchedMessages = await supabaseService.fetchMessages();
         
-        if (fetchedItems !== null && fetchedItems.length > 0) {
+        if (fetchedItems && fetchedItems.length > 0) {
           setItems(fetchedItems);
-          localStorage.setItem('hub_cached_items', JSON.stringify(fetchedItems));
         } else {
-          // Fallback to cache or mock
-          const cachedItems = localStorage.getItem('hub_cached_items');
-          if (cachedItems) {
-            setItems(JSON.parse(cachedItems));
-          } else {
-            setItems(MOCK_ITEMS);
-            localStorage.setItem('hub_cached_items', JSON.stringify(MOCK_ITEMS));
-          }
+          setItems(MOCK_ITEMS);
         }
 
-        if (fetchedMessages !== null) {
+        if (fetchedMessages) {
           setChats(fetchedMessages);
-          localStorage.setItem('hub_cached_messages', JSON.stringify(fetchedMessages));
-        } else {
-          const cachedMessages = localStorage.getItem('hub_cached_messages');
-          if (cachedMessages) setChats(JSON.parse(cachedMessages));
         }
       } catch (err) {
-        console.error("Supabase connection failed, using local fallback", err);
+        console.error("Initialization failed, using mocks:", err);
+        setItems(MOCK_ITEMS);
       } finally {
         setIsLoading(false);
       }
@@ -93,68 +81,60 @@ const AppContent: React.FC = () => {
   };
 
   const handleAddItem = async (newItem: MarketplaceItem) => {
-    // Optimistic local update
-    const updatedItems = [newItem, ...items];
-    setItems(updatedItems);
-    localStorage.setItem('hub_cached_items', JSON.stringify(updatedItems));
-
+    // Add locally for instant UI update
+    setItems([newItem, ...items]);
     try {
       await supabaseService.addItem(newItem);
     } catch (err) {
-      console.warn("Sync failed, item stored locally.");
+      console.error("Failed to sync item to Supabase", err);
     }
   };
 
   const handleUpdateStatus = async (id: string, s: ItemStatus, r?: any) => {
-    // Optimistic local update
-    const updatedItems = items.map(it => it.id === id ? {...it, status: s, recoveryRecord: r} : it);
-    setItems(updatedItems);
-    localStorage.setItem('hub_cached_items', JSON.stringify(updatedItems));
-
+    // Update locally for instant UI update
+    setItems(items.map(it => it.id === id ? {...it, status: s, recoveryRecord: r} : it));
     try {
       await supabaseService.updateItemStatus(id, s, r);
     } catch (err) {
-      console.warn("Status sync failed.");
+      console.error("Failed to sync status update to Supabase", err);
     }
   };
 
   const handleSendMessage = async (itemId: string, text: string) => {
     if (!currentUser) return;
+    
+    // Find item to get recipient_id (the owner of the item)
+    const item = items.find(i => i.id === itemId);
+    const recipientId = item?.posterId || 'unknown';
+
     const newMessage: Message = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(), 
       itemId,
       senderId: currentUser.id,
       senderName: currentUser.name,
+      senderRollNumber: currentUser.collegeId,
       text,
       timestamp: new Date().toISOString()
     };
     
-    // Optimistic local update
-    const updatedChats = [...chats, newMessage];
-    setChats(updatedChats);
-    localStorage.setItem('hub_cached_messages', JSON.stringify(updatedChats));
+    // Add locally for instant UI update
+    setChats(prev => [...prev, newMessage]);
 
     try {
-      await supabaseService.sendMessage(newMessage);
+      await supabaseService.sendMessage(newMessage, recipientId);
     } catch (err) {
-      console.warn("Message sync failed.");
+      console.error("Failed to sync message to Supabase", err);
     }
   };
 
   const handleCheckout = async (order: Order) => {
     try {
-      // Direct call to Supabase service
       await supabaseService.createOrder(order);
-      
-      // Also backup locally
-      const existingOrders = JSON.parse(localStorage.getItem('hub_local_orders') || '[]');
-      localStorage.setItem('hub_local_orders', JSON.stringify([...existingOrders, order]));
-      
-      alert("Order synchronized with Supabase successfully!");
+      alert("Success! Your claim has been saved to Supabase.");
     } catch (err) {
-      console.error("Supabase Order Error:", err);
-      alert("Database error. Order saved locally, but cloud sync failed.");
-      throw err; // Re-throw so modal can handle state
+      console.error("Checkout sync failed", err);
+      alert("There was an error syncing with the database.");
+      throw err;
     }
   };
 
@@ -190,15 +170,13 @@ const AppContent: React.FC = () => {
     });
   }, [chats, items]);
 
-  if (!currentUser) {
-    return <AuthScreen onLogin={handleLogin} />;
-  }
+  if (!currentUser) return <AuthScreen onLogin={handleLogin} />;
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-gray-500 font-bold animate-pulse">Connecting to Supabase...</p>
+        <div className="w-12 h-12 border-4 border-[#2D4A8A] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-500 font-bold animate-pulse uppercase tracking-widest text-[10px]">Connecting to NITR Hub DB...</p>
       </div>
     );
   }
@@ -216,10 +194,7 @@ const AppContent: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setIsInboxOpen(true)} 
-            className="relative text-gray-400 hover:text-gray-600 transition-colors"
-          >
+          <button onClick={() => setIsInboxOpen(true)} className="relative text-gray-400 hover:text-gray-600 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
             {receivedMessagesCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-white"></span>}
           </button>
@@ -233,43 +208,9 @@ const AppContent: React.FC = () => {
       <main className="flex-grow">
         <Routes>
           <Route path="/" element={<Home items={items} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} />} />
-          <Route 
-            path="/marketplace" 
-            element={
-              <Marketplace 
-                items={items.filter(i => i.type === ItemType.MARKETPLACE)} 
-                onAddItem={handleAddItem}
-                onUpdateStatus={handleUpdateStatus}
-                onOpenChat={setActiveChatId}
-                onViewDetail={setViewDetailItemId}
-                currentUser={currentUser}
-              />
-            } 
-          />
-          <Route 
-            path="/lost-found" 
-            element={
-              <LostAndFound 
-                items={items} 
-                onAddItem={handleAddItem}
-                onUpdateStatus={handleUpdateStatus}
-                onOpenChat={setActiveChatId}
-                onViewDetail={setViewDetailItemId}
-                currentUser={currentUser}
-              />
-            } 
-          />
-          <Route 
-            path="/notifications" 
-            element={
-              <Notifications 
-                notifications={currentUser.notificationsEnabled ? notifications : []}
-                onMarkRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, read: true} : n))}
-                onClearAll={() => setNotifications([])}
-                onViewItem={setViewDetailItemId}
-              />
-            } 
-          />
+          <Route path="/marketplace" element={<Marketplace items={items.filter(i => i.type === ItemType.MARKETPLACE)} onAddItem={handleAddItem} onUpdateStatus={handleUpdateStatus} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} currentUser={currentUser} />} />
+          <Route path="/lost-found" element={<LostAndFound items={items} onAddItem={handleAddItem} onUpdateStatus={handleUpdateStatus} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} currentUser={currentUser} />} />
+          <Route path="/notifications" element={<Notifications notifications={currentUser.notificationsEnabled ? notifications : []} onMarkRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, read: true} : n))} onClearAll={() => setNotifications([])} onViewItem={setViewDetailItemId} />} />
         </Routes>
       </main>
 
@@ -286,39 +227,16 @@ const AppContent: React.FC = () => {
       </nav>
 
       {activeChatId && items.find(i => i.id === activeChatId) && (
-        <ChatModal 
-          itemId={activeChatId}
-          item={items.find(i => i.id === activeChatId)!}
-          messages={chats.filter(m => m.itemId === activeChatId)}
-          onClose={() => setActiveChatId(null)}
-          onSend={handleSendMessage}
-          currentUser={currentUser}
-        />
+        <ChatModal itemId={activeChatId} item={items.find(i => i.id === activeChatId)!} messages={chats.filter(m => m.itemId === activeChatId)} onClose={() => setActiveChatId(null)} onSend={handleSendMessage} currentUser={currentUser} />
       )}
       {viewDetailItemId && items.find(i => i.id === viewDetailItemId) && (
-        <ItemDetailModal 
-          item={items.find(i => i.id === viewDetailItemId)!}
-          onClose={() => setViewDetailItemId(null)}
-          onMessage={() => { setViewDetailItemId(null); setActiveChatId(viewDetailItemId); }}
-          onCheckout={handleCheckout}
-          currentUser={currentUser}
-        />
+        <ItemDetailModal item={items.find(i => i.id === viewDetailItemId)!} onClose={() => setViewDetailItemId(null)} onMessage={() => { setViewDetailItemId(null); setActiveChatId(viewDetailItemId); }} onCheckout={handleCheckout} currentUser={currentUser} />
       )}
       {isInboxOpen && (
-        <InboxModal 
-          threads={chatThreads}
-          onClose={() => setIsInboxOpen(false)}
-          onSelectThread={(id) => { setActiveChatId(id); setIsInboxOpen(false); }}
-        />
+        <InboxModal threads={chatThreads} onClose={() => setIsInboxOpen(false)} onSelectThread={(id) => { setActiveChatId(id); setIsInboxOpen(false); }} />
       )}
       {isProfileOpen && (
-        <UserProfileModal 
-          user={currentUser}
-          items={items.filter(i => i.posterId === currentUser.id)}
-          onClose={() => setIsProfileOpen(false)}
-          onUpdateUser={setCurrentUser}
-          onLogout={handleLogout}
-        />
+        <UserProfileModal user={currentUser} items={items.filter(i => i.posterId === currentUser.id)} onClose={() => setIsProfileOpen(false)} onUpdateUser={setCurrentUser} onLogout={handleLogout} />
       )}
     </div>
   );

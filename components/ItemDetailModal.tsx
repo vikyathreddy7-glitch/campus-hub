@@ -16,7 +16,8 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
     fullName: currentUser.name,
     rollNumber: currentUser.collegeId,
     gmail: currentUser.email || '',
-    eventDate: new Date().toISOString().split('T')[0]
+    eventDate: new Date().toISOString().split('T')[0],
+    message: ''
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,11 +46,11 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
       description: item.description,
       title: item.title,
       gmail: buyerInfo.gmail,
-      event_date: buyerInfo.eventDate
+      event_date: buyerInfo.eventDate,
+      message: buyerInfo.message
     };
 
     try {
-      // Wait for Supabase sync
       await onCheckout(orderRecord);
       setIsSubmitting(false);
       onClose();
@@ -81,7 +82,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
              <header className="mb-8">
                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Claim Request</h2>
-               <p className="text-sm font-bold text-gray-500">Syncing final information with Supabase.</p>
+               <p className="text-sm font-bold text-gray-500">Syncing information with Supabase.</p>
              </header>
 
              <form onSubmit={handleFinalSubmit} className="space-y-6">
@@ -137,6 +138,17 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                       onChange={e => setBuyerInfo({...buyerInfo, eventDate: e.target.value})}
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Optional Message</label>
+                  <textarea 
+                    rows={3}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-medium text-black focus:outline-none shadow-sm resize-none"
+                    placeholder="Ask a question or suggest a pickup point..."
+                    value={buyerInfo.message}
+                    onChange={e => setBuyerInfo({...buyerInfo, message: e.target.value})}
+                  />
                 </div>
 
                 <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 space-y-2">
@@ -200,12 +212,12 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
             <section>
               <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Description</h2>
               <p className="text-gray-600 leading-relaxed font-medium">
-                {item.description || "No detailed description provided by the poster."}
+                {item.description || "No detailed description provided."}
               </p>
             </section>
 
             <section className="bg-gray-50 rounded-3xl p-6 border border-gray-100">
-              <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Poster Information</h2>
+              <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Poster Info</h2>
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 text-xl font-black border-2 border-white shadow-sm overflow-hidden">
                    {item.posterAvatarUrl ? (
@@ -217,7 +229,6 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                 <div>
                   <p className="text-base font-black text-gray-900 leading-none mb-1">{item.posterName}</p>
                   <p className="text-sm font-bold text-gray-500 uppercase tracking-tight">ID: {item.posterCollegeId}</p>
-                  <p className="text-[10px] font-bold text-blue-500 mt-1">Verified NITR Member</p>
                 </div>
               </div>
             </section>
@@ -226,14 +237,12 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
               <div className="flex flex-col sm:flex-row gap-4">
                 {!isOwner && (
                   <>
-                    {!isMarketplace && (
-                       <button 
-                        onClick={() => setClaimMode(true)}
-                        className="flex-1 bg-[#2D4A8A] text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-blue-100 active:scale-95 transition-all flex items-center justify-center gap-3"
-                      >
-                        Claim Item
-                      </button>
-                    )}
+                    <button 
+                      onClick={() => setClaimMode(true)}
+                      className="flex-1 bg-[#2D4A8A] text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-blue-100 active:scale-95 transition-all"
+                    >
+                      {isMarketplace ? 'Buy Item' : 'Claim Item'}
+                    </button>
                     <button 
                       onClick={onMessage}
                       className="flex-1 bg-white text-[#2D4A8A] py-5 rounded-[2rem] font-black text-lg border-2 border-blue-50 shadow-sm active:scale-95 transition-all flex items-center justify-center gap-3"
@@ -241,7 +250,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                       </svg>
-                      Message {isMarketplace ? 'Seller' : 'Finder'}
+                      Message
                     </button>
                   </>
                 )}
@@ -251,16 +260,6 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                    </button>
                 )}
               </div>
-              
-              <button 
-                type="button"
-                className="w-full bg-red-50 text-red-600 py-4 rounded-[2rem] font-black text-sm uppercase tracking-widest border border-red-100 hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                Report Item
-              </button>
             </div>
           </>
         )}

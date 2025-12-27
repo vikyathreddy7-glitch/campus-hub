@@ -15,43 +15,27 @@ export const supabaseService = {
         .select('*')
         .order('createdAt', { ascending: false });
       
-      if (error) {
-        console.error('Supabase Error (fetchItems):', error.message, error.details);
-        return null;
-      }
+      if (error) return null;
       return data as MarketplaceItem[];
-    } catch (e: any) {
-      console.error('Network Error (fetchItems):', e.message);
+    } catch (e) {
       return null;
     }
   },
 
   async addItem(item: MarketplaceItem) {
-    const { error } = await supabase
-      .from('listings')
-      .insert([item]);
-    
-    if (error) {
-      console.error('Supabase Error (addItem):', error.message, error.details);
-      throw error;
+    try {
+      const { error } = await supabase.from('listings').insert([item]);
+      if (error) throw error;
+    } catch (e) {
+      console.error("Error adding item:", e);
+      throw e;
     }
   },
 
   async updateItemStatus(itemId: string, status: ItemStatus, recoveryRecord?: any) {
     const updateData: any = { status };
-    if (recoveryRecord) {
-      updateData.recoveryRecord = recoveryRecord;
-    }
-
-    const { error } = await supabase
-      .from('listings')
-      .update(updateData)
-      .eq('id', itemId);
-    
-    if (error) {
-      console.error('Supabase Error (updateItemStatus):', error.message, error.details);
-      throw error;
-    }
+    if (recoveryRecord) updateData.recoveryRecord = recoveryRecord;
+    await supabase.from('listings').update(updateData).eq('id', itemId);
   },
 
   async fetchMessages() {
@@ -59,38 +43,57 @@ export const supabaseService = {
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .order('timestamp', { ascending: true });
+        .order('created_at', { ascending: true });
       
-      if (error) {
-        console.error('Supabase Error (fetchMessages):', error.message, error.details);
-        return null;
-      }
-      return data as Message[];
-    } catch (e: any) {
-      console.error('Network Error (fetchMessages):', e.message);
+      if (error) return null;
+
+      return data.map(dbMsg => ({
+        id: dbMsg.id,
+        itemId: dbMsg.metadata?.itemId || '',
+        senderId: dbMsg.sender_id,
+        senderName: dbMsg.metadata?.senderName || 'Unknown',
+        senderRollNumber: dbMsg.metadata?.senderRollNumber || '',
+        text: dbMsg.content,
+        timestamp: dbMsg.created_at
+      })) as Message[];
+    } catch (e) {
       return null;
     }
   },
 
-  async sendMessage(message: Message) {
+  async sendMessage(message: Message, recipientId?: string) {
+    const dbPayload = {
+      sender_id: message.senderId,
+      recipient_id: recipientId || null,
+      content: message.text,
+      metadata: {
+        itemId: message.itemId,
+        senderName: message.senderName,
+        senderRollNumber: message.senderRollNumber
+      }
+    };
+
     const { error } = await supabase
       .from('messages')
-      .insert([message]);
+      .insert([dbPayload]);
     
-    if (error) {
-      console.error('Supabase Error (sendMessage):', error.message, error.details);
-      throw error;
-    }
+    if (error) throw error;
   },
 
   async createOrder(order: Order) {
-    const { error } = await supabase
-      .from('orders')
-      .insert([order]);
+    // Mapping to the specific column names requested: full_name, roll_number, gmail, etc.
+    const { error } = await supabase.from('orders').insert([order]);
+    if (error) throw error;
+  },
+
+  async getProfile(userId: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
     
-    if (error) {
-      console.error('Supabase Error (createOrder):', error.message, error.details);
-      throw error;
-    }
+    if (error) return null;
+    return data;
   }
 };
