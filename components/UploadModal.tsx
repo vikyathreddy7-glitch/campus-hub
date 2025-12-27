@@ -56,8 +56,9 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onAdd, type: initial
     e.preventDefault();
     if (!image || !formData.category) return;
 
+    // Fix: Use a valid UUID instead of Math.random string to satisfy database constraints
     const newItem: MarketplaceItem = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       title: formData.title,
       description: formData.description,
       price: formData.type === ItemType.MARKETPLACE ? Number(formData.price) : 0,
@@ -67,7 +68,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onAdd, type: initial
       posterId: currentUser.id,
       posterName: currentUser.name,
       posterCollegeId: currentUser.collegeId,
-      posterAvatarUrl: currentUser.avatarUrl, // Capture profile pic
+      posterAvatarUrl: currentUser.avatarUrl,
       createdAt: new Date().toISOString(),
       status: ItemStatus.ACTIVE,
       type: formData.type

@@ -8,7 +8,7 @@ const SUPABASE_KEY = 'sb_publishable_aciCXZ6C0oBG8D-GME5WuQ_WnVNOy4j';
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export const supabaseService = {
-  // --- ITEMS (Unified Fetch from split tables) ---
+  // --- ITEMS ---
   async fetchItems() {
     try {
       const [marketRes, lfRes] = await Promise.all([
@@ -16,8 +16,8 @@ export const supabaseService = {
         supabase.from('lost_and_found').select('*, profiles(full_name, student_id, profile_photo)')
       ]);
 
-      if (marketRes.error) throw marketRes.error;
-      if (lfRes.error) throw lfRes.error;
+      if (marketRes.error) throw new Error(marketRes.error.message);
+      if (lfRes.error) throw new Error(lfRes.error.message);
 
       const marketItems = (marketRes.data || []).map(item => ({
         id: item.id,
@@ -60,39 +60,37 @@ export const supabaseService = {
       return [...marketItems, ...lfItems].sort((a, b) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
-    } catch (e) {
-      console.error("Fetch items error:", e);
+    } catch (e: any) {
+      console.error("Fetch items error:", e.message);
       return null;
     }
   },
 
   async addItem(item: MarketplaceItem) {
-    if (item.type === ItemType.MARKETPLACE) {
-      const { error } = await supabase.from('market_listings').insert([{
-        id: item.id,
-        user_id: item.posterId,
-        title: item.title,
-        description: item.description,
-        price: item.price,
-        category: item.category,
-        image_url: item.imageUrl,
-        status: item.status.toLowerCase()
-      }]);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from('lost_and_found').insert([{
-        id: item.id,
-        user_id: item.posterId,
-        title: item.title,
-        description: item.description,
-        type: item.type.toLowerCase(),
-        location: item.location,
-        category: item.category,
-        image_url: item.imageUrl,
-        status: item.status.toLowerCase()
-      }]);
-      if (error) throw error;
-    }
+    const table = item.type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
+    const payload = item.type === ItemType.MARKETPLACE ? {
+      id: item.id,
+      user_id: item.posterId,
+      title: item.title,
+      description: item.description,
+      price: item.price,
+      category: item.category,
+      image_url: item.imageUrl,
+      status: item.status.toLowerCase()
+    } : {
+      id: item.id,
+      user_id: item.posterId,
+      title: item.title,
+      description: item.description,
+      type: item.type.toLowerCase(),
+      location: item.location,
+      category: item.category,
+      image_url: item.imageUrl,
+      status: item.status.toLowerCase()
+    };
+
+    const { error } = await supabase.from(table).insert([payload]);
+    if (error) throw new Error(error.message);
   },
 
   async updateItemStatus(itemId: string, type: ItemType, status: ItemStatus, recoveryRecord?: any) {
@@ -100,19 +98,19 @@ export const supabaseService = {
     const updateData: any = { status: status.toLowerCase() };
     if (recoveryRecord) {
       updateData.recovery_record = {
-        receiver_name: recoveryRecord.receiverName,
-        college_id: recoveryRecord.collegeId,
+        receiver_name: recoveryRecord.receiver_name,
+        college_id: recoveryRecord.college_id,
         date: recoveryRecord.date
       };
     }
     const { error } = await supabase.from(table).update(updateData).eq('id', itemId);
-    if (error) throw error;
+    if (error) throw new Error(error.message);
   },
 
   async deleteItem(itemId: string, type: ItemType) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
     const { error } = await supabase.from(table).delete().eq('id', itemId);
-    if (error) throw error;
+    if (error) throw new Error(error.message);
   },
 
   // --- MESSAGES ---
@@ -123,7 +121,7 @@ export const supabaseService = {
       .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
       .order('created_at', { ascending: true });
     
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data.map(m => ({
       id: m.id,
       itemId: m.item_id,
@@ -135,22 +133,39 @@ export const supabaseService = {
     })) as Message[];
   },
 
-  async sendMessage(senderId: string, receiverId: string, itemId: string, text: string) {
+  async sendMessage(senderId: string, receiverId: string, itemId: string, text: string, receiverInfo?: { name: string, collegeId: string, avatarUrl?: string }) {
+    // Lazy upsert the receiver so the message doesn't fail due to FK constraint
+    if (receiverInfo) {
+      const { error: profileError } = await supabase.from('profiles').upsert({
+        id: receiverId,
+        full_name: receiverInfo.name,
+        student_id: receiverInfo.collegeId,
+        profile_photo: receiverInfo.avatarUrl,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+      
+      if (profileError) console.warn("Failed to lazy-sync receiver profile:", profileError.message);
+    }
+
     const { error } = await supabase.from('messages').insert([{
       sender_id: senderId,
       receiver_id: receiverId,
       item_id: itemId,
       content: text
     }]);
-    if (error) throw error;
+    if (error) throw new Error(error.message);
   },
 
   // --- CART ---
   async syncCart(userId: string, itemIds: string[]) {
-    await supabase.from('cart_items').delete().eq('user_id', userId);
-    if (itemIds.length > 0) {
-      const inserts = itemIds.map(id => ({ user_id: userId, listing_id: id }));
-      await supabase.from('cart_items').insert(inserts);
+    try {
+      await supabase.from('cart_items').delete().eq('user_id', userId);
+      if (itemIds.length > 0) {
+        const inserts = itemIds.map(id => ({ user_id: userId, listing_id: id }));
+        await supabase.from('cart_items').insert(inserts);
+      }
+    } catch (e) {
+      console.warn("Cart sync failed (check RLS)", e);
     }
   },
 
@@ -161,7 +176,7 @@ export const supabaseService = {
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data.map(n => ({
       id: n.id,
       title: n.title,
@@ -204,18 +219,44 @@ export const supabaseService = {
       event_date: order.event_date,
       message: order.message
     }]);
-    if (error) throw error;
+    if (error) throw new Error(error.message);
   },
 
   // --- PROFILES ---
   async upsertProfile(user: User) {
+    // We attempt to upsert with id as the primary conflict target.
+    // However, if the user provided a roll number that already exists for a different ID
+    // (unlikely with our new deterministic IDs, but good for legacy safety), 
+    // we use a safe retry or handle the conflict explicitly.
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       full_name: user.name,
       gmail: user.email,
       student_id: user.collegeId,
-      profile_photo: user.avatarUrl
+      profile_photo: user.avatarUrl,
+      updated_at: new Date().toISOString()
+    }, { 
+      onConflict: 'id' 
     });
-    if (error) throw error;
+    
+    if (error) {
+      // If we still get a student_id uniqueness error, try upserting with student_id as the conflict target
+      if (error.message.includes('student_id')) {
+        const { error: retryError } = await supabase.from('profiles').upsert({
+          id: user.id,
+          full_name: user.name,
+          gmail: user.email,
+          student_id: user.collegeId,
+          profile_photo: user.avatarUrl,
+          updated_at: new Date().toISOString()
+        }, { 
+          onConflict: 'student_id' 
+        });
+        if (retryError) throw new Error(`DATABASE_ERROR: ${retryError.message}`);
+        return;
+      }
+      console.error("Supabase upsertProfile failed:", error.message);
+      throw new Error(`DATABASE_ERROR: ${error.message}`);
+    }
   }
 };

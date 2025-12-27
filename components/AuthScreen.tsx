@@ -16,11 +16,36 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Generates a deterministic UUID based on the roll number.
+   * This prevents duplicate key errors in the database by ensuring
+   * one Roll Number always maps to one UUID.
+   */
+  const generateDeterministicId = (rollNumber: string): string => {
+    const cleanRoll = rollNumber.toUpperCase().trim();
+    // Use a fixed prefix for NITR Hub users
+    const prefix = "nitr-hub-";
+    const baseStr = prefix + cleanRoll;
+    
+    // Simple hash to create a hex string
+    let hash = 0;
+    for (let i = 0; i < baseStr.length; i++) {
+      hash = ((hash << 5) - hash) + baseStr.charCodeAt(i);
+      hash |= 0;
+    }
+    
+    const hexHash = Math.abs(hash).toString(16).padStart(8, '0');
+    // Format: 8-4-4-4-12 (standard UUID structure)
+    // We'll fill the rest with a deterministic pattern based on the roll number
+    const rollHex = cleanRoll.split('').map(c => c.charCodeAt(0).toString(16)).join('').substring(0, 12).padEnd(12, '0');
+    
+    return `${hexHash}-4000-8000-0000-${rollHex}`;
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Strict 9-character validation for Roll Number
     if (formData.collegeId.length !== 9) {
       setError('Roll Number must be exactly 9 characters (e.g., 121CS0001)');
       return;
@@ -30,11 +55,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     
     // Simulate API delay
     setTimeout(() => {
+      const roll = formData.collegeId.toUpperCase();
       const newUser: User = {
-        id: 'user_' + Math.random().toString(36).substr(2, 9),
+        id: generateDeterministicId(roll), // Now deterministic!
         name: formData.name,
-        collegeId: formData.collegeId.toUpperCase(),
-        email: formData.email || `${formData.collegeId.toLowerCase()}@nitrkl.ac.in`,
+        collegeId: roll,
+        email: formData.email || `${roll.toLowerCase()}@nitrkl.ac.in`,
         phone: '+91 00000 00000',
         year: 'Current Year',
         branch: 'NIT Rourkela',
@@ -43,7 +69,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       };
       onLogin(newUser);
       setIsLoading(false);
-    }, 1500);
+    }, 1200);
   };
 
   if (view === 'splash') {
@@ -78,7 +104,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
           </div>
         </div>
         
-        {/* Background Decorative Elements */}
         <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-blue-600/20 rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-80 h-80 bg-indigo-600/20 rounded-full blur-[120px]" />
       </div>

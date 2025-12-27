@@ -13,6 +13,7 @@ import CartView from './components/CartView';
 import UploadModal from './components/UploadModal';
 import MyListings from './components/MyListings';
 import CheckoutModal from './components/CheckoutModal';
+import AuthScreen from './components/AuthScreen';
 import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification, Order } from './types';
 import { supabaseService } from './services/supabaseService';
 import { MOCK_ITEMS, MOCK_USER } from './constants';
@@ -29,14 +30,19 @@ const AppContent: React.FC = () => {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   
-  const [currentUser, setCurrentUser] = useState<User>(() => {
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('hub_user');
-    return savedUser ? JSON.parse(savedUser) : MOCK_USER;
+    return savedUser ? JSON.parse(savedUser) : null;
   });
   const [isLoading, setIsLoading] = useState(true);
   const location = useLocation();
 
   useEffect(() => {
+    if (!currentUser) {
+      setIsLoading(false);
+      return;
+    }
+
     const loadInitialData = async () => {
       try {
         const [fetchedItems, fetchedMessages, fetchedNotifs] = await Promise.all([
@@ -45,28 +51,50 @@ const AppContent: React.FC = () => {
           supabaseService.fetchNotifications(currentUser.id)
         ]);
         
-        if (fetchedItems) setItems(fetchedItems.length > 0 ? fetchedItems : MOCK_ITEMS);
+        if (fetchedItems) setItems(fetchedItems);
         if (fetchedMessages) setChats(fetchedMessages);
         if (fetchedNotifs) setNotifications(fetchedNotifs);
 
       } catch (err: any) {
-        console.error("Initialization failed:", err.message);
-        setItems(MOCK_ITEMS);
+        console.warn("Initial data sync partial failure (check RLS):", err.message || "Unknown error");
+        setItems([]);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadInitialData();
-  }, [currentUser.id]);
+  }, [currentUser?.id]);
+
+  const handleLogin = async (user: User) => {
+    // Always log in locally first for a fast UI response
+    setCurrentUser(user);
+    localStorage.setItem('hub_user', JSON.stringify(user));
+
+    try {
+      // Attempt to sync the profile with Supabase
+      await supabaseService.upsertProfile(user);
+      console.log("Profile synced successfully with Supabase.");
+    } catch (err: any) {
+      // If sync fails (e.g., RLS error), log it but don't kick the user out
+      const errorMsg = err.message || JSON.stringify(err);
+      console.error("Supabase Profile Sync Warning:", errorMsg);
+      // Optionally notify user that some features might be limited
+    }
+  };
 
   const handleUpdateUser = async (user: User) => {
     setCurrentUser(user);
     localStorage.setItem('hub_user', JSON.stringify(user));
-    await supabaseService.upsertProfile(user);
+    try {
+      await supabaseService.upsertProfile(user);
+    } catch (err: any) {
+      console.error("Profile update sync failed:", err.message);
+    }
   };
 
   const handleAddItem = async (newItem: MarketplaceItem) => {
+    if (!currentUser) return;
     setItems([newItem, ...items]);
     try {
       await supabaseService.addItem(newItem);
@@ -76,11 +104,11 @@ const AppContent: React.FC = () => {
         type: newItem.type,
         itemId: newItem.id
       });
-      // Refresh notifications locally
       const refreshedNotifs = await supabaseService.fetchNotifications(currentUser.id);
       setNotifications(refreshedNotifs);
     } catch (err: any) {
       console.error("Add item failed:", err.message);
+      alert("Note: Your item was posted locally but couldn't sync with the database (check RLS policies).");
     }
   };
 
@@ -92,7 +120,7 @@ const AppContent: React.FC = () => {
     try {
       await supabaseService.updateItemStatus(id, item.type, s, r);
     } catch (err: any) {
-      console.error("Status update failed:", err.message);
+      console.error("Status update sync failed:", err.message);
     }
   };
 
@@ -104,24 +132,34 @@ const AppContent: React.FC = () => {
     try {
       await supabaseService.deleteItem(id, item.type);
     } catch (err: any) {
-      console.error("Delete failed:", err.message);
+      console.error("Delete sync failed:", err.message);
     }
   };
 
   const handleAddToCart = async (item: MarketplaceItem) => {
-    if (cartItems.find(i => i.id === item.id)) return;
+    if (!currentUser || cartItems.find(i => i.id === item.id)) return;
     const newCart = [...cartItems, item];
     setCartItems(newCart);
-    await supabaseService.syncCart(currentUser.id, newCart.map(c => c.id));
+    try {
+      await supabaseService.syncCart(currentUser.id, newCart.map(c => c.id));
+    } catch (err: any) {
+      console.warn("Cart sync warning:", err.message);
+    }
   };
 
   const handleRemoveFromCart = async (id: string) => {
+    if (!currentUser) return;
     const newCart = cartItems.filter(item => item.id !== id);
     setCartItems(newCart);
-    await supabaseService.syncCart(currentUser.id, newCart.map(c => c.id));
+    try {
+      await supabaseService.syncCart(currentUser.id, newCart.map(c => c.id));
+    } catch (err: any) {
+      console.warn("Cart sync warning:", err.message);
+    }
   };
 
   const handleSendMessage = async (itemId: string, text: string) => {
+    if (!currentUser) return;
     const item = items.find(i => i.id === itemId);
     if (!item) return;
 
@@ -137,22 +175,32 @@ const AppContent: React.FC = () => {
     
     setChats(prev => [...prev, newMessage]);
     try {
-      await supabaseService.sendMessage(currentUser.id, item.posterId, itemId, text);
+      await supabaseService.sendMessage(
+        currentUser.id, 
+        item.posterId, 
+        itemId, 
+        text,
+        {
+          name: item.posterName,
+          collegeId: item.posterCollegeId,
+          avatarUrl: item.posterAvatarUrl
+        }
+      );
     } catch (err: any) {
-      console.error("Message send failed:", err.message);
+      console.error("Message send sync failed:", err.message);
     }
   };
 
   const handlePlaceOrder = async (order: Order) => {
+    if (!currentUser) return;
     try {
       await supabaseService.createOrder(order);
       alert("Order placed successfully! The sellers will be notified.");
       setCartItems([]);
       setIsCheckoutOpen(false);
-      // Sync cart deletion to DB
       await supabaseService.syncCart(currentUser.id, []);
     } catch (err: any) {
-      alert("Checkout failed: " + err.message);
+      alert("Checkout sync failed: " + err.message + ". Please ensure your RLS policies allow inserts to the orders table.");
     }
   };
 
@@ -161,18 +209,27 @@ const AppContent: React.FC = () => {
       await supabaseService.createOrder(order);
       alert("Report submitted to campus moderators.");
     } catch (err: any) {
-      console.error("Report sync failed", err);
+      console.error("Report sync failed", err.message);
     }
   };
 
   const handleMarkRead = async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? {...n, read: true} : n));
-    await supabaseService.markNotificationRead(id);
+    try {
+      await supabaseService.markNotificationRead(id);
+    } catch (err: any) {
+      console.error("Notification update failed:", err.message);
+    }
   };
 
   const handleClearNotifications = async () => {
+    if (!currentUser) return;
     setNotifications([]);
-    await supabaseService.clearNotifications(currentUser.id);
+    try {
+      await supabaseService.clearNotifications(currentUser.id);
+    } catch (err: any) {
+      console.error("Notification clear failed:", err.message);
+    }
   };
 
   const chatThreads = useMemo(() => {
@@ -196,9 +253,13 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-4 border-[#2D4A8A] border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-gray-500 font-bold animate-pulse text-[10px] tracking-widest uppercase tracking-tight">Connecting to NITR Hub...</p>
+        <p className="text-gray-500 font-bold animate-pulse text-[10px] tracking-widest uppercase tracking-tight">Connecting to Campus Hub...</p>
       </div>
     );
+  }
+
+  if (!currentUser) {
+    return <AuthScreen onLogin={handleLogin} />;
   }
 
   return (
@@ -259,7 +320,7 @@ const AppContent: React.FC = () => {
         <InboxModal threads={chatThreads} onClose={() => setIsInboxOpen(false)} onSelectThread={(id) => { setActiveChatId(id); setIsInboxOpen(false); }} />
       )}
       {isProfileOpen && (
-        <UserProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onUpdateUser={handleUpdateUser} onLogout={()=>{}} />
+        <UserProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onUpdateUser={handleUpdateUser} onLogout={() => { setCurrentUser(null); localStorage.removeItem('hub_user'); setIsProfileOpen(false); }} />
       )}
       {isUploadOpen && (
         <UploadModal onClose={() => setIsUploadOpen(false)} onAdd={handleAddItem} type={ItemType.MARKETPLACE} currentUser={currentUser} />
