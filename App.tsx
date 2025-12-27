@@ -10,7 +10,7 @@ import Home from './components/Home';
 import Notifications from './components/Notifications';
 import ItemDetailModal from './components/ItemDetailModal';
 import AuthScreen from './components/AuthScreen';
-import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification } from './types';
+import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification, Order } from './types';
 import { supabaseService } from './services/supabaseService';
 import { MOCK_ITEMS } from './constants';
 
@@ -27,7 +27,6 @@ const AppContent: React.FC = () => {
   const location = useLocation();
 
   useEffect(() => {
-    // Check for existing session
     const savedUser = localStorage.getItem('hub_user');
     if (savedUser) {
       setCurrentUser(JSON.parse(savedUser));
@@ -38,24 +37,19 @@ const AppContent: React.FC = () => {
         const fetchedItems = await supabaseService.fetchItems();
         const fetchedMessages = await supabaseService.fetchMessages();
         
-        // Handle Item Data Persistence with Fallbacks
         if (fetchedItems !== null && fetchedItems.length > 0) {
-          // 1. If Supabase has data, use it
           setItems(fetchedItems);
           localStorage.setItem('hub_cached_items', JSON.stringify(fetchedItems));
         } else {
-          // 2. If Supabase fails or is empty, check cache
           const cachedItems = localStorage.getItem('hub_cached_items');
           if (cachedItems) {
             setItems(JSON.parse(cachedItems));
           } else {
-            // 3. Last resort: Use high-quality Mock Data
             setItems(MOCK_ITEMS);
             localStorage.setItem('hub_cached_items', JSON.stringify(MOCK_ITEMS));
           }
         }
 
-        // Handle Messages Persistence
         if (fetchedMessages !== null) {
           setChats(fetchedMessages);
           localStorage.setItem('hub_cached_messages', JSON.stringify(fetchedMessages));
@@ -63,10 +57,8 @@ const AppContent: React.FC = () => {
           const cachedMessages = localStorage.getItem('hub_cached_messages');
           if (cachedMessages) setChats(JSON.parse(cachedMessages));
         }
-
       } catch (err) {
         console.error("Critical failure during initial data load:", err);
-        // Fallback to cache even on exception
         const cachedItems = localStorage.getItem('hub_cached_items');
         if (cachedItems) setItems(JSON.parse(cachedItems));
         else setItems(MOCK_ITEMS);
@@ -102,26 +94,12 @@ const AppContent: React.FC = () => {
   };
 
   const handleAddItem = async (newItem: MarketplaceItem) => {
-    // Optimistic Update
     const updatedItems = [newItem, ...items];
     setItems(updatedItems);
     localStorage.setItem('hub_cached_items', JSON.stringify(updatedItems));
 
     try {
       await supabaseService.addItem(newItem);
-      
-      const newNotif: Notification = {
-        id: Math.random().toString(36).substr(2, 9),
-        title: newItem.type === ItemType.MARKETPLACE ? 'New Item for Sale' : 
-               newItem.type === ItemType.LOST ? 'New Lost Item Reported' : 'New Item Found',
-        message: `${newItem.posterName} posted: ${newItem.title}`,
-        type: newItem.type,
-        timestamp: new Date().toISOString(),
-        itemId: newItem.id,
-        read: false
-      };
-      
-      setNotifications(prev => [newNotif, ...prev]);
     } catch (err) {
       console.warn("Database failed to sync, item saved locally only.");
     }
@@ -150,7 +128,6 @@ const AppContent: React.FC = () => {
       timestamp: new Date().toISOString()
     };
     
-    // Optimistic Update
     const updatedChats = [...chats, newMessage];
     setChats(updatedChats);
     localStorage.setItem('hub_cached_messages', JSON.stringify(updatedChats));
@@ -159,6 +136,18 @@ const AppContent: React.FC = () => {
       await supabaseService.sendMessage(newMessage);
     } catch (err) {
       console.warn("Message failed to sync with database.");
+    }
+  };
+
+  const handleCheckout = async (order: Order) => {
+    try {
+      await supabaseService.createOrder(order);
+      // Optional: Mark item as sold if it's a marketplace item
+      // await handleUpdateStatus(order.itemId, ItemStatus.SOLD); 
+      alert("Order successfully placed!");
+    } catch (err) {
+      console.error("Checkout failed:", err);
+      alert("Checkout failed. Please try again.");
     }
   };
 
@@ -304,6 +293,7 @@ const AppContent: React.FC = () => {
           item={items.find(i => i.id === viewDetailItemId)!}
           onClose={() => setViewDetailItemId(null)}
           onMessage={() => { setViewDetailItemId(null); setActiveChatId(viewDetailItemId); }}
+          onCheckout={handleCheckout}
           currentUser={currentUser}
         />
       )}

@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { MarketplaceItem, Message, ItemStatus } from '../types';
 
-const SUPABASE_URL = 'https://hetncaslrbmysahsbfry.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_ZhhiBHFZ21621xi55QZtjQ__r4csQRB';
+const SUPABASE_URL = 'https://bxvdbkqucvlmvajofsdy.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_CL4ytggTwTADWFGvMicsJg_y6qwFBD_';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -17,7 +17,7 @@ export const supabaseService = {
       
       if (error) {
         console.error('Supabase Error (fetchItems):', error.message, error.details);
-        return null; // Return null to signal a fetch failure
+        return null;
       }
       return data as MarketplaceItem[];
     } catch (e: any) {
@@ -79,6 +79,17 @@ export const supabaseService = {
     
     if (error) {
       console.error('Supabase Error (sendMessage):', error.message, error.details);
+      throw error;
+    }
+  },
+
+  async createOrder(orderData: any) {
+    const { error } = await supabase
+      .from('orders')
+      .insert([orderData]);
+    
+    if (error) {
+      console.error('Supabase Error (createOrder):', error.message, error.details);
       throw error;
     }
   }

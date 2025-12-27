@@ -39,7 +39,7 @@ export interface MarketplaceItem {
   posterId: string;
   posterName: string;
   posterCollegeId: string; 
-  posterAvatarUrl?: string; // Added field for Profile Pic
+  posterAvatarUrl?: string;
   createdAt: string;
   status: ItemStatus;
   type: ItemType;
@@ -72,4 +72,17 @@ export interface Notification {
   timestamp: string;
   itemId: string;
   read: boolean;
+}
+
+export interface Order {
+  id?: string;
+  full_name: string;
+  roll_number: string;
+  price: number;
+  location: string;
+  description: string;
+  title: string;
+  gmail: string;
+  event_date: string;
+  created_at?: string;
 }
