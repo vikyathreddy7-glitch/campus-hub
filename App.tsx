@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { HashRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Marketplace from './components/Marketplace';
 import LostAndFound from './components/LostAndFound';
 import ChatModal from './components/ChatModal';
@@ -9,7 +9,6 @@ import InboxModal from './components/InboxModal';
 import Home from './components/Home';
 import Notifications from './components/Notifications';
 import ItemDetailModal from './components/ItemDetailModal';
-import AuthScreen from './components/AuthScreen';
 import CartView from './components/CartView';
 import UploadModal from './components/UploadModal';
 import MyListings from './components/MyListings';
@@ -40,103 +39,91 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const fetchedItems = await supabaseService.fetchItems();
-        const fetchedMessages = await supabaseService.fetchMessages();
+        const [fetchedItems, fetchedMessages, fetchedNotifs] = await Promise.all([
+          supabaseService.fetchItems(),
+          supabaseService.fetchMessages(currentUser.id),
+          supabaseService.fetchNotifications(currentUser.id)
+        ]);
         
-        if (fetchedItems && fetchedItems.length > 0) {
-          setItems(fetchedItems);
-        } else {
-          setItems(MOCK_ITEMS);
-        }
+        if (fetchedItems) setItems(fetchedItems.length > 0 ? fetchedItems : MOCK_ITEMS);
+        if (fetchedMessages) setChats(fetchedMessages);
+        if (fetchedNotifs) setNotifications(fetchedNotifs);
 
-        if (fetchedMessages) {
-          setChats(fetchedMessages);
-        }
       } catch (err: any) {
-        console.error("Initialization failed, using mocks:", err.message || err);
+        console.error("Initialization failed:", err.message);
         setItems(MOCK_ITEMS);
       } finally {
         setIsLoading(false);
       }
-
-      setNotifications([
-        {
-          id: 'n1',
-          title: 'Welcome to Campus Hub',
-          message: 'Start exploring items listed by your fellow students.',
-          type: ItemType.MARKETPLACE,
-          timestamp: new Date().toISOString(),
-          itemId: '1',
-          read: false
-        }
-      ]);
     };
 
     loadInitialData();
-  }, []);
+  }, [currentUser.id]);
 
-  const handleLogin = async (user: User) => {
+  const handleUpdateUser = async (user: User) => {
     setCurrentUser(user);
     localStorage.setItem('hub_user', JSON.stringify(user));
-    
-    try {
-      await supabaseService.upsertProfile(user);
-    } catch (err: any) {
-      console.error("Failed to sync profile to Supabase during login:", err.message || err);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('hub_user');
-    window.location.reload();
+    await supabaseService.upsertProfile(user);
   };
 
   const handleAddItem = async (newItem: MarketplaceItem) => {
     setItems([newItem, ...items]);
     try {
       await supabaseService.addItem(newItem);
+      await supabaseService.addNotification(currentUser.id, {
+        title: 'Listing Active',
+        message: `"${newItem.title}" is now visible to the campus.`,
+        type: newItem.type,
+        itemId: newItem.id
+      });
+      // Refresh notifications locally
+      const refreshedNotifs = await supabaseService.fetchNotifications(currentUser.id);
+      setNotifications(refreshedNotifs);
     } catch (err: any) {
-      console.error("Failed to sync item to Supabase:", err.message || err);
+      console.error("Add item failed:", err.message);
     }
   };
 
   const handleUpdateStatus = async (id: string, s: ItemStatus, r?: any) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
     setItems(prev => prev.map(it => it.id === id ? {...it, status: s, recoveryRecord: r} : it));
     try {
-      await supabaseService.updateItemStatus(id, s, r);
+      await supabaseService.updateItemStatus(id, item.type, s, r);
     } catch (err: any) {
-      console.error("Failed to sync status update to Supabase:", err.message || err);
+      console.error("Status update failed:", err.message);
     }
   };
 
   const handleDeleteItem = async (id: string) => {
-    setItems(prev => prev.filter(it => it.id !== id));
-    setCartItems(prev => prev.filter(it => it.id !== id));
-    
-    if (viewDetailItemId === id) setViewDetailItemId(null);
-    if (activeChatId === id) setActiveChatId(null);
+    const item = items.find(i => i.id === id);
+    if (!item) return;
 
+    setItems(prev => prev.filter(it => it.id !== id));
     try {
-      await supabaseService.deleteItem(id);
+      await supabaseService.deleteItem(id, item.type);
     } catch (err: any) {
-      console.error("Failed to delete item from Supabase:", err.message || err);
+      console.error("Delete failed:", err.message);
     }
   };
 
-  const handleAddToCart = (item: MarketplaceItem) => {
+  const handleAddToCart = async (item: MarketplaceItem) => {
     if (cartItems.find(i => i.id === item.id)) return;
-    setCartItems(prev => [...prev, item]);
+    const newCart = [...cartItems, item];
+    setCartItems(newCart);
+    await supabaseService.syncCart(currentUser.id, newCart.map(c => c.id));
   };
 
-  const handleRemoveFromCart = (id: string) => {
-    setCartItems(prev => prev.filter(item => item.id !== id));
+  const handleRemoveFromCart = async (id: string) => {
+    const newCart = cartItems.filter(item => item.id !== id);
+    setCartItems(newCart);
+    await supabaseService.syncCart(currentUser.id, newCart.map(c => c.id));
   };
 
   const handleSendMessage = async (itemId: string, text: string) => {
-    if (!currentUser) return;
-    
     const item = items.find(i => i.id === itemId);
-    const recipientId = item?.posterId || 'unknown';
+    if (!item) return;
 
     const newMessage: Message = {
       id: crypto.randomUUID(), 
@@ -149,33 +136,10 @@ const AppContent: React.FC = () => {
     };
     
     setChats(prev => [...prev, newMessage]);
-
     try {
-      await supabaseService.sendMessage(newMessage, recipientId);
+      await supabaseService.sendMessage(currentUser.id, item.posterId, itemId, text);
     } catch (err: any) {
-      console.error("Failed to sync message to Supabase:", err.message || err);
-    }
-  };
-
-  // Renamed from handleCheckout to distinguish from real order placement
-  const handleReportItem = async (order: Order) => {
-    try {
-      await supabaseService.createOrder(order);
-      const reportCount = await supabaseService.countReportsForTitle(order.title);
-      
-      if (reportCount >= 5) {
-        const itemToHide = items.find(i => i.title === order.title && i.status === ItemStatus.ACTIVE);
-        if (itemToHide) {
-          await handleUpdateStatus(itemToHide.id, ItemStatus.SOLD);
-          alert("This item has been removed from the platform due to multiple community reports.");
-        }
-      } else {
-        alert("Success! Your report has been saved.");
-      }
-    } catch (err: any) {
-      console.error("Report sync failed:", err.message || err);
-      alert("There was an error syncing with the database: " + (err.message || "Unknown error"));
-      throw err;
+      console.error("Message send failed:", err.message);
     }
   };
 
@@ -185,22 +149,31 @@ const AppContent: React.FC = () => {
       alert("Order placed successfully! The sellers will be notified.");
       setCartItems([]);
       setIsCheckoutOpen(false);
+      // Sync cart deletion to DB
+      await supabaseService.syncCart(currentUser.id, []);
     } catch (err: any) {
-      console.error("Order failed:", err.message || err);
-      alert("Failed to place order: " + (err.message || "Unknown error"));
-      throw err;
+      alert("Checkout failed: " + err.message);
     }
   };
 
-  const receivedMessagesCount = useMemo(() => {
-    if (!currentUser) return 0;
-    return chats.filter(m => m.senderId !== currentUser.id).length;
-  }, [chats, currentUser]);
+  const handleReportItem = async (order: Order) => {
+    try {
+      await supabaseService.createOrder(order);
+      alert("Report submitted to campus moderators.");
+    } catch (err: any) {
+      console.error("Report sync failed", err);
+    }
+  };
 
-  const unreadNotificationsCount = useMemo(() => {
-    if (!currentUser) return 0;
-    return currentUser.notificationsEnabled ? notifications.filter(n => !n.read).length : 0;
-  }, [notifications, currentUser]);
+  const handleMarkRead = async (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? {...n, read: true} : n));
+    await supabaseService.markNotificationRead(id);
+  };
+
+  const handleClearNotifications = async () => {
+    setNotifications([]);
+    await supabaseService.clearNotifications(currentUser.id);
+  };
 
   const chatThreads = useMemo(() => {
     const groups: { [key: string]: Message[] } = {};
@@ -208,7 +181,6 @@ const AppContent: React.FC = () => {
       if (!groups[m.itemId]) groups[m.itemId] = [];
       groups[m.itemId].push(m);
     });
-
     return Object.entries(groups).map(([itemId, messages]) => {
       const item = items.find(i => i.id === itemId);
       return {
@@ -217,18 +189,14 @@ const AppContent: React.FC = () => {
         itemImageUrl: item?.imageUrl,
         messages: messages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       } as ChatThread;
-    }).sort((a, b) => {
-      const aTime = new Date(a.messages[0].timestamp).getTime();
-      const bTime = new Date(b.messages[0].timestamp).getTime();
-      return bTime - aTime;
-    });
+    }).sort((a, b) => new Date(b.messages[0].timestamp).getTime() - new Date(a.messages[0].timestamp).getTime());
   }, [chats, items]);
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-4 border-[#2D4A8A] border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-gray-500 font-bold animate-pulse uppercase tracking-widest text-[10px]">Connecting to NITR Hub DB...</p>
+        <p className="text-gray-500 font-bold animate-pulse text-[10px] tracking-widest uppercase tracking-tight">Connecting to NITR Hub...</p>
       </div>
     );
   }
@@ -242,17 +210,17 @@ const AppContent: React.FC = () => {
           </div>
           <div>
             <h1 className="text-lg font-black text-gray-800 tracking-tight leading-none">Campus</h1>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Hub</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Hub</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <button onClick={() => setIsInboxOpen(true)} className="relative text-gray-400 hover:text-gray-600 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-            {receivedMessagesCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-white"></span>}
+            {chats.filter(m => m.senderId !== currentUser.id).length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-white"></span>}
           </button>
           <Link to="/notifications" className="relative text-gray-400 hover:text-gray-600 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-            {unreadNotificationsCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></span>}
+            {notifications.filter(n => !n.read).length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></span>}
           </Link>
         </div>
       </header>
@@ -262,7 +230,7 @@ const AppContent: React.FC = () => {
           <Route path="/" element={<Home items={items} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} />} />
           <Route path="/marketplace" element={<Marketplace items={items.filter(i => i.type === ItemType.MARKETPLACE)} onUpdateStatus={handleUpdateStatus} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} currentUser={currentUser} onAddToCart={handleAddToCart} cartCount={cartItems.length} />} />
           <Route path="/lost-found" element={<LostAndFound items={items} onUpdateStatus={handleUpdateStatus} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} currentUser={currentUser} />} />
-          <Route path="/notifications" element={<Notifications notifications={currentUser.notificationsEnabled ? notifications : []} onMarkRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, read: true} : n))} onClearAll={() => setNotifications([])} onViewItem={setViewDetailItemId} />} />
+          <Route path="/notifications" element={<Notifications notifications={notifications} onMarkRead={handleMarkRead} onClearAll={handleClearNotifications} onViewItem={setViewDetailItemId} />} />
           <Route path="/cart" element={<CartView cartItems={cartItems} onRemoveItem={handleRemoveFromCart} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} onCheckout={() => setIsCheckoutOpen(true)} />} />
           <Route path="/my-listings" element={<MyListings items={items.filter(i => i.posterId === currentUser.id)} onDelete={handleDeleteItem} />} />
         </Routes>
@@ -271,16 +239,7 @@ const AppContent: React.FC = () => {
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 flex justify-around items-center z-50">
         <NavItem to="/" icon="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" label="Home" active={location.pathname === '/'} />
         <NavItem to="/marketplace" icon="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" label="Market" active={location.pathname === '/marketplace'} />
-        
-        <button 
-          onClick={() => setIsUploadOpen(true)}
-          className="w-14 h-14 bg-[#2D4A8A] text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-200 transition-all active:scale-90 -mt-8 border-4 border-white"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
-
+        <button onClick={() => setIsUploadOpen(true)} className="w-14 h-14 bg-[#2D4A8A] text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 -mt-8 border-4 border-white"><svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg></button>
         <NavItem to="/lost-found" icon="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z" label="L&F" active={location.pathname === '/lost-found'} />
         <button onClick={() => setIsProfileOpen(true)} className={`flex flex-col items-center gap-1 ${isProfileOpen ? 'text-[#5B7CB8]' : 'text-gray-400'}`}>
           <div className={`w-6 h-6 rounded-full border-2 ${isProfileOpen ? 'border-[#5B7CB8]' : 'border-gray-200'} flex items-center justify-center`}>
@@ -300,23 +259,13 @@ const AppContent: React.FC = () => {
         <InboxModal threads={chatThreads} onClose={() => setIsInboxOpen(false)} onSelectThread={(id) => { setActiveChatId(id); setIsInboxOpen(false); }} />
       )}
       {isProfileOpen && (
-        <UserProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onUpdateUser={setCurrentUser} onLogout={handleLogout} />
+        <UserProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onUpdateUser={handleUpdateUser} onLogout={()=>{}} />
       )}
       {isUploadOpen && (
-        <UploadModal 
-          onClose={() => setIsUploadOpen(false)} 
-          onAdd={handleAddItem} 
-          type={ItemType.MARKETPLACE} 
-          currentUser={currentUser} 
-        />
+        <UploadModal onClose={() => setIsUploadOpen(false)} onAdd={handleAddItem} type={ItemType.MARKETPLACE} currentUser={currentUser} />
       )}
       {isCheckoutOpen && (
-        <CheckoutModal 
-          user={currentUser} 
-          items={cartItems} 
-          onClose={() => setIsCheckoutOpen(false)} 
-          onConfirm={handlePlaceOrder} 
-        />
+        <CheckoutModal user={currentUser} items={cartItems} onClose={() => setIsCheckoutOpen(false)} onConfirm={handlePlaceOrder} />
       )}
     </div>
   );
