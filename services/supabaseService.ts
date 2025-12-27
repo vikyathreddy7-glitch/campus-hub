@@ -81,16 +81,5 @@ export const supabaseService = {
       console.error('Supabase Error (sendMessage):', error.message, error.details);
       throw error;
     }
-  },
-
-  async createOrder(orderData: any) {
-    const { error } = await supabase
-      .from('orders')
-      .insert([orderData]);
-    
-    if (error) {
-      console.error('Supabase Error (createOrder):', error.message, error.details);
-      throw error;
-    }
   }
 };

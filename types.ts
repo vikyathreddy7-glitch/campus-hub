@@ -73,16 +73,3 @@ export interface Notification {
   itemId: string;
   read: boolean;
 }
-
-export interface Order {
-  id?: string;
-  full_name: string;
-  roll_number: string;
-  price: number;
-  location: string;
-  description: string;
-  title: string;
-  gmail: string;
-  event_date: string;
-  created_at?: string;
-}
