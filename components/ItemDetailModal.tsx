@@ -11,8 +11,8 @@ interface ItemDetailModalProps {
 }
 
 const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMessage, onCheckout, currentUser }) => {
-  const [claimMode, setClaimMode] = useState(false);
-  const [buyerInfo, setBuyerInfo] = useState({
+  const [reportMode, setReportMode] = useState(false);
+  const [reporterInfo, setReporterInfo] = useState({
     fullName: currentUser.name,
     rollNumber: currentUser.collegeId,
     gmail: currentUser.email || '',
@@ -25,11 +25,11 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
   const isMarketplace = item.type === ItemType.MARKETPLACE;
   const isOwner = item.posterId === currentUser.id;
 
-  const handleFinalSubmit = async (e: React.FormEvent) => {
+  const handleReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (buyerInfo.rollNumber.length !== 9) {
+    if (reporterInfo.rollNumber.length !== 9) {
       setError('Roll Number must be exactly 9 characters.');
       return;
     }
@@ -38,25 +38,25 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
 
     setIsSubmitting(true);
 
-    const orderRecord: Order = {
-      full_name: buyerInfo.fullName,
-      roll_number: buyerInfo.rollNumber.toUpperCase(),
+    const reportRecord: Order = {
+      full_name: reporterInfo.fullName,
+      roll_number: reporterInfo.rollNumber.toUpperCase(),
       price: item.price,
       location: item.location || 'Campus',
       description: item.description,
       title: item.title,
-      gmail: buyerInfo.gmail,
-      event_date: buyerInfo.eventDate,
-      message: buyerInfo.message
+      gmail: reporterInfo.gmail,
+      event_date: reporterInfo.eventDate,
+      message: reporterInfo.message
     };
 
     try {
-      await onCheckout(orderRecord);
+      await onCheckout(reportRecord);
       setIsSubmitting(false);
       onClose();
     } catch (err) {
       setIsSubmitting(false);
-      setError('Sync failed. Please check your connection.');
+      setError('Failed to sync report. Please try again.');
     }
   };
 
@@ -78,14 +78,14 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
       </div>
 
       <div className="flex-grow bg-white -mt-8 rounded-t-[2.5rem] p-8 shadow-2xl relative z-10 space-y-8 pb-24">
-        {claimMode ? (
+        {reportMode ? (
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
              <header className="mb-8">
-               <h2 className="text-2xl font-black text-gray-900 tracking-tight">Claim Request</h2>
-               <p className="text-sm font-bold text-gray-500">Syncing information with Supabase.</p>
+               <h2 className="text-2xl font-black text-gray-900 tracking-tight">Report Listing</h2>
+               <p className="text-sm font-bold text-gray-500">Provide details to notify the community or poster.</p>
              </header>
 
-             <form onSubmit={handleFinalSubmit} className="space-y-6">
+             <form onSubmit={handleReportSubmit} className="space-y-6">
                 {error && (
                   <div className="p-4 bg-red-50 text-red-600 text-xs font-black rounded-2xl border border-red-100 uppercase tracking-widest">
                     {error}
@@ -94,85 +94,83 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Full Name</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Your Name</label>
                     <input 
                       required
                       className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold text-black focus:outline-none shadow-sm"
-                      value={buyerInfo.fullName}
-                      onChange={e => setBuyerInfo({...buyerInfo, fullName: e.target.value})}
+                      value={reporterInfo.fullName}
+                      onChange={e => setReporterInfo({...reporterInfo, fullName: e.target.value})}
                     />
                   </div>
 
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block flex justify-between">
                       <span>Roll Number</span>
-                      <span className={buyerInfo.rollNumber.length === 9 ? 'text-green-500' : 'text-gray-300'}>{buyerInfo.rollNumber.length}/9</span>
+                      <span className={reporterInfo.rollNumber.length === 9 ? 'text-green-500' : 'text-gray-300'}>{reporterInfo.rollNumber.length}/9</span>
                     </label>
                     <input 
                       required
                       maxLength={9}
                       className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold text-black focus:outline-none shadow-sm uppercase"
-                      value={buyerInfo.rollNumber}
-                      onChange={e => setBuyerInfo({...buyerInfo, rollNumber: e.target.value.toUpperCase()})}
+                      value={reporterInfo.rollNumber}
+                      onChange={e => setReporterInfo({...reporterInfo, rollNumber: e.target.value.toUpperCase()})}
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gmail</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Campus Email</label>
                     <input 
                       required
                       type="email"
                       className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold text-black focus:outline-none shadow-sm"
-                      value={buyerInfo.gmail}
-                      onChange={e => setBuyerInfo({...buyerInfo, gmail: e.target.value})}
+                      value={reporterInfo.gmail}
+                      onChange={e => setReporterInfo({...reporterInfo, gmail: e.target.value})}
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Date</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Date of Interest</label>
                     <input 
                       required
                       type="date"
                       className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-bold text-black focus:outline-none shadow-sm"
-                      value={buyerInfo.eventDate}
-                      onChange={e => setBuyerInfo({...buyerInfo, eventDate: e.target.value})}
+                      value={reporterInfo.eventDate}
+                      onChange={e => setReporterInfo({...reporterInfo, eventDate: e.target.value})}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Optional Message</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Report Message / Details</label>
                   <textarea 
                     rows={3}
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 text-sm font-medium text-black focus:outline-none shadow-sm resize-none"
-                    placeholder="Ask a question or suggest a pickup point..."
-                    value={buyerInfo.message}
-                    onChange={e => setBuyerInfo({...buyerInfo, message: e.target.value})}
+                    placeholder="Provide additional details or ask a question about the report..."
+                    value={reporterInfo.message}
+                    onChange={e => setReporterInfo({...reporterInfo, message: e.target.value})}
                   />
                 </div>
 
-                <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 space-y-2">
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Summary</p>
+                <div className="bg-orange-50/50 p-6 rounded-[2rem] border border-orange-100 space-y-2">
+                  <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest">Item Summary</p>
                   <p className="text-base font-black text-gray-900 leading-none">{item.title}</p>
-                  <p className="text-xl font-black text-blue-600">
-                    {isMarketplace ? `₹ ${item.price}` : 'FREE / CLAIM'}
-                  </p>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Status: {item.status}</p>
                 </div>
 
                 <div className="flex gap-4">
                   <button 
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-[2] bg-[#2D4A8A] text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-blue-100 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                    className="flex-[2] bg-orange-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-orange-100 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                   >
-                    {isSubmitting ? 'Syncing...' : 'Confirm Claim'}
+                    {isSubmitting ? 'Submitting...' : 'Submit Report'}
                   </button>
                   <button 
                     type="button"
-                    onClick={() => setClaimMode(false)}
+                    onClick={() => setReportMode(false)}
                     className="flex-1 bg-gray-100 text-gray-500 py-5 rounded-[2rem] font-black text-sm active:scale-95 transition-all"
                   >
-                    Back
+                    Cancel
                   </button>
                 </div>
              </form>
@@ -217,7 +215,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
             </section>
 
             <section className="bg-gray-50 rounded-3xl p-6 border border-gray-100">
-              <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Poster Info</h2>
+              <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Poster Information</h2>
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 text-xl font-black border-2 border-white shadow-sm overflow-hidden">
                    {item.posterAvatarUrl ? (
@@ -238,10 +236,13 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                 {!isOwner && (
                   <>
                     <button 
-                      onClick={() => setClaimMode(true)}
-                      className="flex-1 bg-[#2D4A8A] text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-blue-100 active:scale-95 transition-all"
+                      onClick={() => setReportMode(true)}
+                      className="flex-1 bg-orange-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-orange-100 active:scale-95 transition-all flex items-center justify-center gap-3"
                     >
-                      {isMarketplace ? 'Buy Item' : 'Claim Item'}
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      Report Item
                     </button>
                     <button 
                       onClick={onMessage}
