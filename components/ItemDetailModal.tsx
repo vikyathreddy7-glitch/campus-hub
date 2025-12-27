@@ -24,7 +24,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
   const isMarketplace = item.type === ItemType.MARKETPLACE;
   const isOwner = item.posterId === currentUser.id;
 
-  const handleFinalSubmit = async (e: React.FormEvent) => {
+  const handleFinalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -48,9 +48,13 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
       event_date: buyerInfo.eventDate
     };
 
-    await onCheckout(orderRecord);
-    setIsSubmitting(false);
-    onClose();
+    // Perform local save
+    onCheckout(orderRecord);
+    
+    setTimeout(() => {
+      setIsSubmitting(false);
+      onClose();
+    }, 500);
   };
 
   return (
@@ -147,7 +151,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                     disabled={isSubmitting}
                     className="flex-[2] bg-[#2D4A8A] text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-blue-100 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                   >
-                    {isSubmitting ? 'Syncing...' : 'Place Claim'}
+                    {isSubmitting ? 'Posting...' : 'Save Request'}
                   </button>
                   <button 
                     type="button"
@@ -220,7 +224,6 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
               <div className="flex flex-col sm:flex-row gap-4">
                 {!isOwner && (
                   <>
-                    {/* Replaced Buy Now with Claim Item specifically for Lost/Found, Marketplace remains message-only */}
                     {!isMarketplace && (
                        <button 
                         onClick={() => setClaimMode(true)}
