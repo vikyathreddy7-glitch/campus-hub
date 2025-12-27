@@ -1,6 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { MarketplaceItem, User, ItemStatus, ItemType } from '../types';
+import { supabaseService } from '../services/supabaseService';
 
 interface UserProfileModalProps {
   user: User;
@@ -13,6 +14,7 @@ interface UserProfileModalProps {
 const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClose, onUpdateUser, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'listings' | 'activity'>('listings');
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Partial<User>>({
     name: user.name,
     year: user.year,
@@ -27,10 +29,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClos
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const updatedUser = { ...user, avatarUrl: reader.result as string };
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        const updatedUser = { ...user, avatarUrl: base64 };
+        
+        // Instant update
         onUpdateUser(updatedUser);
         localStorage.setItem('hub_user', JSON.stringify(updatedUser));
+        
+        // Sync with DB
+        try {
+          await supabaseService.upsertProfile(updatedUser);
+        } catch (err) {
+          console.error("Failed to sync new avatar to Supabase", err);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -42,23 +54,34 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClos
     localStorage.setItem('hub_user', JSON.stringify(updatedUser));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (editData.collegeId && editData.collegeId.length !== 9) {
       setError('Roll Number must be 9 characters.');
       return;
     }
 
+    setIsSaving(true);
     const updatedUser = {
       ...user,
       name: editData.name || user.name,
       year: editData.year || user.year,
       branch: editData.branch || user.branch,
-      collegeId: editData.collegeId || user.collegeId,
+      collegeId: (editData.collegeId || user.collegeId).toUpperCase(),
     };
-    onUpdateUser(updatedUser);
-    localStorage.setItem('hub_user', JSON.stringify(updatedUser));
-    setIsEditing(false);
-    setError(null);
+
+    try {
+      // Sync with Supabase
+      await supabaseService.upsertProfile(updatedUser);
+      
+      onUpdateUser(updatedUser);
+      localStorage.setItem('hub_user', JSON.stringify(updatedUser));
+      setIsEditing(false);
+      setError(null);
+    } catch (err) {
+      setError('Failed to sync profile changes. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleEditToggle = () => {
@@ -189,12 +212,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClos
 
         <div className="p-6 border-t border-gray-100 flex gap-3 bg-white">
           <button 
-            onClick={handleEditToggle} 
-            className={`flex-1 py-4 rounded-2xl font-black text-sm active:scale-95 transition-all ${
+            onClick={handleEditToggle}
+            disabled={isSaving}
+            className={`flex-1 py-4 rounded-2xl font-black text-sm active:scale-95 transition-all flex items-center justify-center gap-2 ${
               isEditing ? 'bg-green-600 text-white' : 'bg-gray-900 text-white'
             }`}
           >
-             {isEditing ? 'Save Changes' : 'Edit Profile'}
+             {isSaving ? (
+               <>
+                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                 Saving...
+               </>
+             ) : (
+               isEditing ? 'Save Changes' : 'Edit Profile'
+             )}
           </button>
           {!isEditing && (
             <button 
@@ -204,7 +235,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClos
               Sign Out
             </button>
           )}
-          {isEditing && (
+          {isEditing && !isSaving && (
             <button 
               onClick={() => setIsEditing(false)} 
               className="flex-1 bg-gray-100 text-gray-600 py-4 rounded-2xl font-black text-sm active:scale-95 transition-all"

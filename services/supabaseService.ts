@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { MarketplaceItem, Message, ItemStatus, Order } from '../types';
+import { MarketplaceItem, Message, ItemStatus, Order, User } from '../types';
 
 const SUPABASE_URL = 'https://bxvdbkqucvlmvajofsdy.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CL4ytggTwTADWFGvMicsJg_y6qwFBD_';
@@ -81,9 +81,27 @@ export const supabaseService = {
   },
 
   async createOrder(order: Order) {
-    // Mapping to the specific column names requested: full_name, roll_number, gmail, etc.
     const { error } = await supabase.from('orders').insert([order]);
     if (error) throw error;
+  },
+
+  async upsertProfile(user: User) {
+    const profileData = {
+      id: user.id,
+      full_name: user.name,
+      gmail: user.email,
+      student_id: user.collegeId,
+      profile_photo: user.avatarUrl
+    };
+
+    const { error } = await supabase
+      .from('profiles')
+      .upsert(profileData, { onConflict: 'id' });
+    
+    if (error) {
+      console.error("Error upserting profile:", error);
+      throw error;
+    }
   },
 
   async getProfile(userId: string) {

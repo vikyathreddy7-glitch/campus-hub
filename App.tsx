@@ -69,9 +69,17 @@ const AppContent: React.FC = () => {
     loadInitialData();
   }, []);
 
-  const handleLogin = (user: User) => {
+  const handleLogin = async (user: User) => {
     setCurrentUser(user);
     localStorage.setItem('hub_user', JSON.stringify(user));
+    
+    // Sync to Supabase Profiles table
+    try {
+      await supabaseService.upsertProfile(user);
+      console.log("Profile synced to Supabase successfully");
+    } catch (err) {
+      console.error("Failed to sync profile to Supabase during login", err);
+    }
   };
 
   const handleLogout = () => {
@@ -103,7 +111,6 @@ const AppContent: React.FC = () => {
   const handleSendMessage = async (itemId: string, text: string) => {
     if (!currentUser) return;
     
-    // Find item to get recipient_id (the owner of the item)
     const item = items.find(i => i.id === itemId);
     const recipientId = item?.posterId || 'unknown';
 
@@ -117,7 +124,6 @@ const AppContent: React.FC = () => {
       timestamp: new Date().toISOString()
     };
     
-    // Add locally for instant UI update
     setChats(prev => [...prev, newMessage]);
 
     try {
@@ -130,7 +136,7 @@ const AppContent: React.FC = () => {
   const handleCheckout = async (order: Order) => {
     try {
       await supabaseService.createOrder(order);
-      alert("Success! Your claim has been saved to Supabase.");
+      alert("Success! Your report has been saved.");
     } catch (err) {
       console.error("Checkout sync failed", err);
       alert("There was an error syncing with the database.");

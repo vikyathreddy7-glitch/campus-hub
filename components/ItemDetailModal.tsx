@@ -231,36 +231,34 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
               </div>
             </section>
 
-            <div className="pt-4 flex flex-col gap-3">
-              <div className="flex flex-col sm:flex-row gap-4">
-                {!isOwner && (
-                  <>
-                    <button 
-                      onClick={() => setReportMode(true)}
-                      className="flex-1 bg-orange-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-orange-100 active:scale-95 transition-all flex items-center justify-center gap-3"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                      Report Item
-                    </button>
-                    <button 
-                      onClick={onMessage}
-                      className="flex-1 bg-white text-[#2D4A8A] py-5 rounded-[2rem] font-black text-lg border-2 border-blue-50 shadow-sm active:scale-95 transition-all flex items-center justify-center gap-3"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                      </svg>
-                      Message
-                    </button>
-                  </>
-                )}
-                {isOwner && (
-                   <button className="flex-grow bg-gray-900 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-gray-100 active:scale-95 transition-all">
-                      Manage Listing
-                   </button>
-                )}
-              </div>
+            <div className="pt-4 flex flex-col gap-4">
+              {!isOwner && (
+                <>
+                  <button 
+                    onClick={onMessage}
+                    className="w-full bg-[#2D4A8A] text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-blue-100 active:scale-95 transition-all flex items-center justify-center gap-3"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    Message Seller
+                  </button>
+                  <button 
+                    onClick={() => setReportMode(true)}
+                    className="w-full bg-orange-50 text-orange-600 border border-orange-100 py-5 rounded-[2rem] font-black text-lg active:scale-95 transition-all flex items-center justify-center gap-3"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Report Item
+                  </button>
+                </>
+              )}
+              {isOwner && (
+                 <button className="w-full bg-gray-900 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-gray-100 active:scale-95 transition-all">
+                    Manage Listing
+                 </button>
+              )}
             </div>
           </>
         )}
