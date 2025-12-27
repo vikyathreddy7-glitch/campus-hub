@@ -6,7 +6,7 @@ interface ItemDetailModalProps {
   item: MarketplaceItem;
   onClose: () => void;
   onMessage: () => void;
-  onCheckout?: (order: Order) => void;
+  onCheckout?: (order: Order) => Promise<void> | void;
   currentUser: User;
 }
 
@@ -24,7 +24,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
   const isMarketplace = item.type === ItemType.MARKETPLACE;
   const isOwner = item.posterId === currentUser.id;
 
-  const handleFinalSubmit = (e: React.FormEvent) => {
+  const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -48,13 +48,15 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
       event_date: buyerInfo.eventDate
     };
 
-    // Perform local save
-    onCheckout(orderRecord);
-    
-    setTimeout(() => {
+    try {
+      // Wait for Supabase sync
+      await onCheckout(orderRecord);
       setIsSubmitting(false);
       onClose();
-    }, 500);
+    } catch (err) {
+      setIsSubmitting(false);
+      setError('Sync failed. Please check your connection.');
+    }
   };
 
   return (
@@ -79,7 +81,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
              <header className="mb-8">
                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Claim Request</h2>
-               <p className="text-sm font-bold text-gray-500">Provide final information for the claim record.</p>
+               <p className="text-sm font-bold text-gray-500">Syncing final information with Supabase.</p>
              </header>
 
              <form onSubmit={handleFinalSubmit} className="space-y-6">
@@ -151,7 +153,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                     disabled={isSubmitting}
                     className="flex-[2] bg-[#2D4A8A] text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-blue-100 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                   >
-                    {isSubmitting ? 'Posting...' : 'Save Request'}
+                    {isSubmitting ? 'Syncing...' : 'Confirm Claim'}
                   </button>
                   <button 
                     type="button"

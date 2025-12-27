@@ -11,6 +11,7 @@ import Notifications from './components/Notifications';
 import ItemDetailModal from './components/ItemDetailModal';
 import AuthScreen from './components/AuthScreen';
 import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification, Order } from './types';
+import { supabaseService } from './services/supabaseService';
 import { MOCK_ITEMS } from './constants';
 
 const AppContent: React.FC = () => {
@@ -31,20 +32,37 @@ const AppContent: React.FC = () => {
       setCurrentUser(JSON.parse(savedUser));
     }
 
-    const loadInitialData = () => {
-      // Load from local storage exclusively
-      const cachedItems = localStorage.getItem('hub_cached_items');
-      const cachedMessages = localStorage.getItem('hub_cached_messages');
+    const loadInitialData = async () => {
+      try {
+        // Fetch from Supabase
+        const fetchedItems = await supabaseService.fetchItems();
+        const fetchedMessages = await supabaseService.fetchMessages();
+        
+        if (fetchedItems !== null && fetchedItems.length > 0) {
+          setItems(fetchedItems);
+          localStorage.setItem('hub_cached_items', JSON.stringify(fetchedItems));
+        } else {
+          // Fallback to cache or mock
+          const cachedItems = localStorage.getItem('hub_cached_items');
+          if (cachedItems) {
+            setItems(JSON.parse(cachedItems));
+          } else {
+            setItems(MOCK_ITEMS);
+            localStorage.setItem('hub_cached_items', JSON.stringify(MOCK_ITEMS));
+          }
+        }
 
-      if (cachedItems) {
-        setItems(JSON.parse(cachedItems));
-      } else {
-        setItems(MOCK_ITEMS);
-        localStorage.setItem('hub_cached_items', JSON.stringify(MOCK_ITEMS));
-      }
-
-      if (cachedMessages) {
-        setChats(JSON.parse(cachedMessages));
+        if (fetchedMessages !== null) {
+          setChats(fetchedMessages);
+          localStorage.setItem('hub_cached_messages', JSON.stringify(fetchedMessages));
+        } else {
+          const cachedMessages = localStorage.getItem('hub_cached_messages');
+          if (cachedMessages) setChats(JSON.parse(cachedMessages));
+        }
+      } catch (err) {
+        console.error("Supabase connection failed, using local fallback", err);
+      } finally {
+        setIsLoading(false);
       }
 
       setNotifications([
@@ -58,9 +76,6 @@ const AppContent: React.FC = () => {
           read: false
         }
       ]);
-
-      // Short artificial delay for smooth transition
-      setTimeout(() => setIsLoading(false), 800);
     };
 
     loadInitialData();
@@ -77,19 +92,33 @@ const AppContent: React.FC = () => {
     setIsProfileOpen(false);
   };
 
-  const handleAddItem = (newItem: MarketplaceItem) => {
+  const handleAddItem = async (newItem: MarketplaceItem) => {
+    // Optimistic local update
     const updatedItems = [newItem, ...items];
     setItems(updatedItems);
     localStorage.setItem('hub_cached_items', JSON.stringify(updatedItems));
+
+    try {
+      await supabaseService.addItem(newItem);
+    } catch (err) {
+      console.warn("Sync failed, item stored locally.");
+    }
   };
 
-  const handleUpdateStatus = (id: string, s: ItemStatus, r?: any) => {
+  const handleUpdateStatus = async (id: string, s: ItemStatus, r?: any) => {
+    // Optimistic local update
     const updatedItems = items.map(it => it.id === id ? {...it, status: s, recoveryRecord: r} : it);
     setItems(updatedItems);
     localStorage.setItem('hub_cached_items', JSON.stringify(updatedItems));
+
+    try {
+      await supabaseService.updateItemStatus(id, s, r);
+    } catch (err) {
+      console.warn("Status sync failed.");
+    }
   };
 
-  const handleSendMessage = (itemId: string, text: string) => {
+  const handleSendMessage = async (itemId: string, text: string) => {
     if (!currentUser) return;
     const newMessage: Message = {
       id: Math.random().toString(36).substr(2, 9),
@@ -100,16 +129,33 @@ const AppContent: React.FC = () => {
       timestamp: new Date().toISOString()
     };
     
+    // Optimistic local update
     const updatedChats = [...chats, newMessage];
     setChats(updatedChats);
     localStorage.setItem('hub_cached_messages', JSON.stringify(updatedChats));
+
+    try {
+      await supabaseService.sendMessage(newMessage);
+    } catch (err) {
+      console.warn("Message sync failed.");
+    }
   };
 
-  const handleCheckout = (order: Order) => {
-    // Locally store the order record or just confirm
-    const existingOrders = JSON.parse(localStorage.getItem('hub_local_orders') || '[]');
-    localStorage.setItem('hub_local_orders', JSON.stringify([...existingOrders, order]));
-    alert("Request submitted successfully (Saved locally)!");
+  const handleCheckout = async (order: Order) => {
+    try {
+      // Direct call to Supabase service
+      await supabaseService.createOrder(order);
+      
+      // Also backup locally
+      const existingOrders = JSON.parse(localStorage.getItem('hub_local_orders') || '[]');
+      localStorage.setItem('hub_local_orders', JSON.stringify([...existingOrders, order]));
+      
+      alert("Order synchronized with Supabase successfully!");
+    } catch (err) {
+      console.error("Supabase Order Error:", err);
+      alert("Database error. Order saved locally, but cloud sync failed.");
+      throw err; // Re-throw so modal can handle state
+    }
   };
 
   const receivedMessagesCount = useMemo(() => {
@@ -152,7 +198,7 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-gray-500 font-bold animate-pulse">Initializing Campus Hub...</p>
+        <p className="text-gray-500 font-bold animate-pulse">Connecting to Supabase...</p>
       </div>
     );
   }
