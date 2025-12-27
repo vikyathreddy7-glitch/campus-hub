@@ -2,22 +2,19 @@
 import React, { useState } from 'react';
 import { MarketplaceItem, ItemStatus, ItemType, User } from '../types';
 import ItemCard from './ItemCard';
-import UploadModal from './UploadModal';
 import HistoryView from './HistoryView';
 
 interface LostAndFoundProps {
   items: MarketplaceItem[];
-  onAddItem: (item: MarketplaceItem) => void;
   onUpdateStatus: (itemId: string, status: ItemStatus, recovery?: any) => void;
   onOpenChat: (itemId: string) => void;
   onViewDetail: (itemId: string) => void;
   currentUser: User;
 }
 
-const LostAndFound: React.FC<LostAndFoundProps> = ({ items, onAddItem, onUpdateStatus, onOpenChat, onViewDetail, currentUser }) => {
+const LostAndFound: React.FC<LostAndFoundProps> = ({ items, onUpdateStatus, onOpenChat, onViewDetail, currentUser }) => {
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const matchesSearch = (item: MarketplaceItem) => 
     item.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -45,15 +42,6 @@ const LostAndFound: React.FC<LostAndFoundProps> = ({ items, onAddItem, onUpdateS
           <h1 className="text-2xl md:text-4xl font-extrabold text-gray-900 tracking-tight">Lost & Found</h1>
           <p className="text-gray-500 text-sm md:text-base">Safe returns within the NITR campus.</p>
         </div>
-        <button 
-          onClick={() => setIsUploadOpen(true)}
-          className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3.5 rounded-2xl font-bold shadow-xl shadow-orange-100 transition-all flex items-center justify-center gap-2 text-sm md:text-base active:scale-[0.98]"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-          </svg>
-          Report Item
-        </button>
       </div>
 
       <div className="px-6">
@@ -155,15 +143,6 @@ const LostAndFound: React.FC<LostAndFoundProps> = ({ items, onAddItem, onUpdateS
           </div>
         )}
       </div>
-
-      {isUploadOpen && (
-        <UploadModal 
-          onClose={() => setIsUploadOpen(false)}
-          onAdd={onAddItem}
-          type={ItemType.FOUND}
-          currentUser={currentUser}
-        />
-      )}
     </div>
   );
 };

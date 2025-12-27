@@ -1,18 +1,18 @@
 
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MarketplaceItem, User, ItemStatus, ItemType } from '../types';
 import { supabaseService } from '../services/supabaseService';
 
 interface UserProfileModalProps {
   user: User;
-  items: MarketplaceItem[];
   onClose: () => void;
   onUpdateUser: (user: User) => void;
   onLogout: () => void;
 }
 
-const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClose, onUpdateUser, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'listings' | 'activity'>('listings');
+const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUpdateUser, onLogout }) => {
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Partial<User>>({
@@ -33,11 +33,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClos
         const base64 = reader.result as string;
         const updatedUser = { ...user, avatarUrl: base64 };
         
-        // Instant update
         onUpdateUser(updatedUser);
         localStorage.setItem('hub_user', JSON.stringify(updatedUser));
         
-        // Sync with DB
         try {
           await supabaseService.upsertProfile(updatedUser);
         } catch (err) {
@@ -70,9 +68,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClos
     };
 
     try {
-      // Sync with Supabase
       await supabaseService.upsertProfile(updatedUser);
-      
       onUpdateUser(updatedUser);
       localStorage.setItem('hub_user', JSON.stringify(updatedUser));
       setIsEditing(false);
@@ -97,6 +93,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClos
       setIsEditing(true);
       setError(null);
     }
+  };
+
+  const goToMyListings = () => {
+    onClose();
+    navigate('/my-listings');
   };
 
   return (
@@ -164,6 +165,24 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClos
           </div>
 
           <div className="space-y-6">
+            <section 
+              onClick={goToMyListings}
+              className="bg-blue-600 p-6 rounded-[2rem] border border-blue-500 shadow-xl shadow-blue-100 cursor-pointer active:scale-[0.98] transition-all group"
+            >
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📦</div>
+                   <div>
+                     <h3 className="text-base font-black text-white tracking-tight">Manage My Listings</h3>
+                     <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest">Active & Sold History</p>
+                   </div>
+                 </div>
+                 <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                 </svg>
+               </div>
+            </section>
+
             <section className="bg-gray-50 p-6 rounded-[2rem] border border-gray-100">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">App Settings</h3>
               <div className="flex items-center justify-between">
@@ -181,31 +200,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, items, onClos
                   <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${user.notificationsEnabled ? 'right-1' : 'left-1'}`} />
                 </button>
               </div>
-            </section>
-
-            <section className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
-               <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">My Listings</h3>
-                 <div className="flex gap-2">
-                   <button onClick={() => setActiveTab('listings')} className={`text-[10px] font-black px-3 py-1 rounded-lg ${activeTab === 'listings' ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400'}`}>Market</button>
-                   <button onClick={() => setActiveTab('activity')} className={`text-[10px] font-black px-3 py-1 rounded-lg ${activeTab === 'activity' ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400'}`}>Reports</button>
-                 </div>
-               </div>
-               <div className="space-y-3">
-                  {items.length > 0 ? (
-                    items.filter(i => activeTab === 'listings' ? i.type === ItemType.MARKETPLACE : i.type !== ItemType.MARKETPLACE).map(it => (
-                      <div key={it.id} className="flex gap-3 items-center bg-gray-50/50 p-2 rounded-xl">
-                        <img src={it.imageUrl} className="w-10 h-10 rounded-lg object-cover" alt="" />
-                        <div className="flex-grow min-w-0">
-                          <p className="text-xs font-bold text-gray-900 truncate">{it.title}</p>
-                          <p className="text-[9px] text-gray-400 font-bold uppercase">{it.status}</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-center py-4 text-xs text-gray-400 font-bold uppercase tracking-widest">No listings yet</p>
-                  )}
-               </div>
             </section>
           </div>
         </div>

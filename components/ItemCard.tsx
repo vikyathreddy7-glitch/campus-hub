@@ -8,9 +8,10 @@ interface ItemCardProps {
   onMessage: () => void;
   onViewDetail?: () => void;
   currentUser: User;
+  onAddToCart?: (item: MarketplaceItem) => void;
 }
 
-const ItemCard: React.FC<ItemCardProps> = ({ item, onUpdateStatus, onMessage, onViewDetail, currentUser }) => {
+const ItemCard: React.FC<ItemCardProps> = ({ item, onUpdateStatus, onMessage, onViewDetail, currentUser, onAddToCart }) => {
   const [isRecovering, setIsRecovering] = useState(false);
   const [recoveryForm, setRecoveryForm] = useState({ name: '', rollId: '' });
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
@@ -39,13 +40,14 @@ const ItemCard: React.FC<ItemCardProps> = ({ item, onUpdateStatus, onMessage, on
   };
 
   return (
-    <div className="bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl transition-all group flex flex-col h-full">
-      <div className="relative aspect-[4/3] overflow-hidden bg-gray-50" onClick={onViewDetail}>
+    <div className="bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl transition-all group flex flex-col h-full relative">
+      <div className="relative aspect-[4/3] overflow-hidden bg-gray-50 cursor-pointer" onClick={onViewDetail}>
         <img 
           src={item.imageUrl} 
           alt={item.title}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
+        
         <div className="absolute top-3 left-3 flex flex-wrap gap-2">
           <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-wider shadow-sm ${
             item.type === ItemType.MARKETPLACE 
