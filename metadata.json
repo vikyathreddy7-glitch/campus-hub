@@ -1,0 +1,7 @@
+{
+  "name": "NITR Campus Hub",
+  "description": "A centralized marketplace and lost-and-found platform for the NIT Rourkela campus community.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
