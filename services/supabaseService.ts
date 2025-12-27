@@ -7,62 +7,87 @@ const SUPABASE_KEY = 'sb_publishable_aciCXZ6C0oBG8D-GME5WuQ_WnVNOy4j';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+/**
+ * Helper to wrap async operations with a simple retry logic
+ * to handle transient network issues like "Failed to fetch".
+ */
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, delay = 1000): Promise<T> {
+  let lastError: any;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      // Only retry on network-related errors
+      if (err.message?.includes('fetch') || err.name === 'TypeError') {
+        await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
 export const supabaseService = {
   // --- ITEMS ---
-  async fetchItems() {
+  async fetchItems(): Promise<MarketplaceItem[]> {
     try {
-      const [marketRes, lfRes] = await Promise.all([
-        supabase.from('market_listings').select('*, profiles(full_name, student_id, profile_photo)'),
-        supabase.from('lost_and_found').select('*, profiles(full_name, student_id, profile_photo)')
-      ]);
+      return await withRetry(async () => {
+        const [marketRes, lfRes] = await Promise.all([
+          supabase.from('market_listings').select('*, profiles(full_name, student_id, profile_photo)'),
+          supabase.from('lost_and_found').select('*, profiles(full_name, student_id, profile_photo)')
+        ]);
 
-      if (marketRes.error) throw new Error(marketRes.error.message);
-      if (lfRes.error) throw new Error(lfRes.error.message);
+        if (marketRes.error) throw new Error(marketRes.error.message);
+        if (lfRes.error) throw new Error(lfRes.error.message);
 
-      const marketItems = (marketRes.data || []).map(item => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        price: item.price,
-        category: item.category,
-        imageUrl: item.image_url,
-        posterId: item.user_id,
-        posterName: item.profiles?.full_name || 'Anonymous',
-        posterCollegeId: item.profiles?.student_id || '',
-        posterAvatarUrl: item.profiles?.profile_photo,
-        createdAt: item.created_at,
-        status: item.status.toUpperCase() as ItemStatus,
-        type: ItemType.MARKETPLACE,
-      }));
+        const marketItems = (marketRes.data || []).map(item => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          price: item.price,
+          category: item.category,
+          imageUrl: item.image_url,
+          posterId: item.user_id,
+          posterName: item.profiles?.full_name || 'Anonymous',
+          posterCollegeId: item.profiles?.student_id || '',
+          posterAvatarUrl: item.profiles?.profile_photo,
+          createdAt: item.created_at,
+          status: item.status.toUpperCase() as ItemStatus,
+          type: ItemType.MARKETPLACE,
+        }));
 
-      const lfItems = (lfRes.data || []).map(item => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        price: 0,
-        category: item.category,
-        imageUrl: item.image_url,
-        posterId: item.user_id,
-        posterName: item.profiles?.full_name || 'Anonymous',
-        posterCollegeId: item.profiles?.student_id || '',
-        posterAvatarUrl: item.profiles?.profile_photo,
-        createdAt: item.created_at,
-        status: item.status.toUpperCase() as ItemStatus,
-        type: item.type.toUpperCase() as ItemType,
-        location: item.location,
-        recoveryRecord: item.recovery_record ? {
-          receiverName: item.recovery_record.receiver_name,
-          collegeId: item.recovery_record.college_id,
-          date: item.recovery_record.date
-        } : undefined
-      }));
+        const lfItems = (lfRes.data || []).map(item => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          price: 0,
+          category: item.category,
+          imageUrl: item.image_url,
+          posterId: item.user_id,
+          posterName: item.profiles?.full_name || 'Anonymous',
+          posterCollegeId: item.profiles?.student_id || '',
+          posterAvatarUrl: item.profiles?.profile_photo,
+          createdAt: item.created_at,
+          status: item.status.toUpperCase() as ItemStatus,
+          type: item.type.toUpperCase() as ItemType,
+          location: item.location,
+          recoveryRecord: item.recovery_record ? {
+            receiverName: item.recovery_record.receiver_name,
+            collegeId: item.recovery_record.college_id,
+            date: item.recovery_record.date
+          } : undefined
+        }));
 
-      return [...marketItems, ...lfItems].sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+        return [...marketItems, ...lfItems].sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      });
     } catch (e: any) {
-      console.error("Fetch items error:", e.message);
-      return null;
+      console.warn("Fetch items failed after retries:", e.message);
+      // Return empty array to allow UI to render gracefully
+      return [];
     }
   },
 
@@ -98,8 +123,8 @@ export const supabaseService = {
     const updateData: any = { status: status.toLowerCase() };
     if (recoveryRecord) {
       updateData.recovery_record = {
-        receiver_name: recoveryRecord.receiver_name,
-        college_id: recoveryRecord.college_id,
+        receiver_name: recoveryRecord.receiverName,
+        college_id: recoveryRecord.collegeId,
         date: recoveryRecord.date
       };
     }
@@ -114,37 +139,46 @@ export const supabaseService = {
   },
 
   // --- MESSAGES ---
-  async fetchMessages(currentUserId: string) {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*, profiles:sender_id(full_name, student_id)')
-      .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
-      .order('created_at', { ascending: true });
-    
-    if (error) throw new Error(error.message);
-    return data.map(m => ({
-      id: m.id,
-      itemId: m.item_id,
-      senderId: m.sender_id,
-      senderName: m.profiles?.full_name || 'Unknown',
-      senderRollNumber: m.profiles?.student_id || '',
-      text: m.content,
-      timestamp: m.created_at
-    })) as Message[];
+  async fetchMessages(currentUserId: string): Promise<Message[]> {
+    try {
+      return await withRetry(async () => {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*, profiles:sender_id(full_name, student_id)')
+          .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
+          .order('created_at', { ascending: true });
+        
+        if (error) throw new Error(error.message);
+        return (data || []).map(m => ({
+          id: m.id,
+          itemId: m.item_id,
+          senderId: m.sender_id,
+          senderName: m.profiles?.full_name || 'Unknown',
+          senderRollNumber: m.profiles?.student_id || '',
+          text: m.content,
+          timestamp: m.created_at
+        })) as Message[];
+      });
+    } catch (e: any) {
+      console.warn("Fetch messages failed:", e.message);
+      return [];
+    }
   },
 
   async sendMessage(senderId: string, receiverId: string, itemId: string, text: string, receiverInfo?: { name: string, collegeId: string, avatarUrl?: string }) {
     // Lazy upsert the receiver so the message doesn't fail due to FK constraint
     if (receiverInfo) {
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: receiverId,
-        full_name: receiverInfo.name,
-        student_id: receiverInfo.collegeId,
-        profile_photo: receiverInfo.avatarUrl,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'id' });
-      
-      if (profileError) console.warn("Failed to lazy-sync receiver profile:", profileError.message);
+      try {
+        await supabase.from('profiles').upsert({
+          id: receiverId,
+          full_name: receiverInfo.name,
+          student_id: receiverInfo.collegeId,
+          profile_photo: receiverInfo.avatarUrl,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      } catch (profileError: any) {
+        console.warn("Failed to lazy-sync receiver profile:", profileError.message);
+      }
     }
 
     const { error } = await supabase.from('messages').insert([{
@@ -170,22 +204,29 @@ export const supabaseService = {
   },
 
   // --- NOTIFICATIONS ---
-  async fetchNotifications(userId: string) {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
-    return data.map(n => ({
-      id: n.id,
-      title: n.title,
-      message: n.message,
-      type: n.type as ItemType,
-      timestamp: n.created_at,
-      itemId: n.item_id,
-      read: n.read
-    })) as Notification[];
+  async fetchNotifications(userId: string): Promise<Notification[]> {
+    try {
+      return await withRetry(async () => {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        if (error) throw new Error(error.message);
+        return (data || []).map(n => ({
+          id: n.id,
+          title: n.title,
+          message: n.message,
+          type: n.type as ItemType,
+          timestamp: n.created_at,
+          itemId: n.item_id,
+          read: n.read
+        })) as Notification[];
+      });
+    } catch (e: any) {
+      console.warn("Fetch notifications failed:", e.message);
+      return [];
+    }
   },
 
   async addNotification(userId: string, notif: Partial<Notification>) {
@@ -224,10 +265,6 @@ export const supabaseService = {
 
   // --- PROFILES ---
   async upsertProfile(user: User) {
-    // We attempt to upsert with id as the primary conflict target.
-    // However, if the user provided a roll number that already exists for a different ID
-    // (unlikely with our new deterministic IDs, but good for legacy safety), 
-    // we use a safe retry or handle the conflict explicitly.
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       full_name: user.name,
@@ -240,7 +277,6 @@ export const supabaseService = {
     });
     
     if (error) {
-      // If we still get a student_id uniqueness error, try upserting with student_id as the conflict target
       if (error.message.includes('student_id')) {
         const { error: retryError } = await supabase.from('profiles').upsert({
           id: user.id,
