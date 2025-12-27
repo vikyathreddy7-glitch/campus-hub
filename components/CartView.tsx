@@ -8,9 +8,10 @@ interface CartViewProps {
   onRemoveItem: (id: string) => void;
   onOpenChat: (id: string) => void;
   onViewDetail: (id: string) => void;
+  onCheckout: () => void;
 }
 
-const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat, onViewDetail }) => {
+const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat, onViewDetail, onCheckout }) => {
   const navigate = useNavigate();
 
   return (
@@ -29,7 +30,7 @@ const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat
         </div>
       </header>
 
-      <div className="px-6 flex-grow pb-24 space-y-4">
+      <div className="px-6 flex-grow pb-32 space-y-4 overflow-y-auto">
         {cartItems.length > 0 ? (
           cartItems.map(item => (
             <div key={item.id} className="bg-white rounded-[2rem] border border-gray-100 p-4 shadow-sm flex gap-4 animate-in slide-in-from-bottom-2 duration-300">
@@ -87,17 +88,20 @@ const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat
       </div>
 
       {cartItems.length > 0 && (
-        <div className="fixed bottom-24 left-6 right-6 z-10">
-          <div className="bg-white/80 backdrop-blur-md border border-gray-100 p-6 rounded-[2.5rem] shadow-2xl flex items-center justify-between">
+        <div className="fixed bottom-24 left-6 right-6 z-40 space-y-3">
+          <div className="bg-white/90 backdrop-blur-md border border-gray-100 p-6 rounded-[2.5rem] shadow-2xl flex items-center justify-between">
             <div>
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Value</p>
               <p className="text-2xl font-black text-gray-900 tracking-tighter">
                 ₹{cartItems.reduce((acc, item) => acc + item.price, 0)}
               </p>
             </div>
-            <p className="text-xs font-bold text-gray-500 text-right max-w-[120px]">
-              {cartItems.length} items saved in your hub cart.
-            </p>
+            <button 
+              onClick={onCheckout}
+              className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
+            >
+              Checkout
+            </button>
           </div>
         </div>
       )}

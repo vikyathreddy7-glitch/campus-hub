@@ -13,6 +13,7 @@ import AuthScreen from './components/AuthScreen';
 import CartView from './components/CartView';
 import UploadModal from './components/UploadModal';
 import MyListings from './components/MyListings';
+import CheckoutModal from './components/CheckoutModal';
 import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification, Order } from './types';
 import { supabaseService } from './services/supabaseService';
 import { MOCK_ITEMS, MOCK_USER } from './constants';
@@ -27,6 +28,7 @@ const AppContent: React.FC = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   
   const [currentUser, setCurrentUser] = useState<User>(() => {
     const savedUser = localStorage.getItem('hub_user');
@@ -155,7 +157,8 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleCheckout = async (order: Order) => {
+  // Renamed from handleCheckout to distinguish from real order placement
+  const handleReportItem = async (order: Order) => {
     try {
       await supabaseService.createOrder(order);
       const reportCount = await supabaseService.countReportsForTitle(order.title);
@@ -172,6 +175,19 @@ const AppContent: React.FC = () => {
     } catch (err: any) {
       console.error("Report sync failed:", err.message || err);
       alert("There was an error syncing with the database: " + (err.message || "Unknown error"));
+      throw err;
+    }
+  };
+
+  const handlePlaceOrder = async (order: Order) => {
+    try {
+      await supabaseService.createOrder(order);
+      alert("Order placed successfully! The sellers will be notified.");
+      setCartItems([]);
+      setIsCheckoutOpen(false);
+    } catch (err: any) {
+      console.error("Order failed:", err.message || err);
+      alert("Failed to place order: " + (err.message || "Unknown error"));
       throw err;
     }
   };
@@ -247,7 +263,7 @@ const AppContent: React.FC = () => {
           <Route path="/marketplace" element={<Marketplace items={items.filter(i => i.type === ItemType.MARKETPLACE)} onUpdateStatus={handleUpdateStatus} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} currentUser={currentUser} onAddToCart={handleAddToCart} cartCount={cartItems.length} />} />
           <Route path="/lost-found" element={<LostAndFound items={items} onUpdateStatus={handleUpdateStatus} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} currentUser={currentUser} />} />
           <Route path="/notifications" element={<Notifications notifications={currentUser.notificationsEnabled ? notifications : []} onMarkRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, read: true} : n))} onClearAll={() => setNotifications([])} onViewItem={setViewDetailItemId} />} />
-          <Route path="/cart" element={<CartView cartItems={cartItems} onRemoveItem={handleRemoveFromCart} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} />} />
+          <Route path="/cart" element={<CartView cartItems={cartItems} onRemoveItem={handleRemoveFromCart} onOpenChat={setActiveChatId} onViewDetail={setViewDetailItemId} onCheckout={() => setIsCheckoutOpen(true)} />} />
           <Route path="/my-listings" element={<MyListings items={items.filter(i => i.posterId === currentUser.id)} onDelete={handleDeleteItem} />} />
         </Routes>
       </main>
@@ -278,7 +294,7 @@ const AppContent: React.FC = () => {
         <ChatModal itemId={activeChatId} item={items.find(i => i.id === activeChatId)!} messages={chats.filter(m => m.itemId === activeChatId)} onClose={() => setActiveChatId(null)} onSend={handleSendMessage} currentUser={currentUser} />
       )}
       {viewDetailItemId && items.find(i => i.id === viewDetailItemId) && (
-        <ItemDetailModal item={items.find(i => i.id === viewDetailItemId)!} onClose={() => setViewDetailItemId(null)} onMessage={() => { setViewDetailItemId(null); setActiveChatId(viewDetailItemId); }} onCheckout={handleCheckout} currentUser={currentUser} onAddToCart={handleAddToCart} />
+        <ItemDetailModal item={items.find(i => i.id === viewDetailItemId)!} onClose={() => setViewDetailItemId(null)} onMessage={() => { setViewDetailItemId(null); setActiveChatId(viewDetailItemId); }} onCheckout={handleReportItem} currentUser={currentUser} onAddToCart={handleAddToCart} />
       )}
       {isInboxOpen && (
         <InboxModal threads={chatThreads} onClose={() => setIsInboxOpen(false)} onSelectThread={(id) => { setActiveChatId(id); setIsInboxOpen(false); }} />
@@ -292,6 +308,14 @@ const AppContent: React.FC = () => {
           onAdd={handleAddItem} 
           type={ItemType.MARKETPLACE} 
           currentUser={currentUser} 
+        />
+      )}
+      {isCheckoutOpen && (
+        <CheckoutModal 
+          user={currentUser} 
+          items={cartItems} 
+          onClose={() => setIsCheckoutOpen(false)} 
+          onConfirm={handlePlaceOrder} 
         />
       )}
     </div>
