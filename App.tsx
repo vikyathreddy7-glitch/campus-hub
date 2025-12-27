@@ -10,7 +10,7 @@ import Home from './components/Home';
 import Notifications from './components/Notifications';
 import ItemDetailModal from './components/ItemDetailModal';
 import AuthScreen from './components/AuthScreen';
-import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification } from './types';
+import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification, Order } from './types';
 import { supabaseService } from './services/supabaseService';
 import { MOCK_ITEMS } from './constants';
 
@@ -136,6 +136,16 @@ const AppContent: React.FC = () => {
       await supabaseService.sendMessage(newMessage);
     } catch (err) {
       console.warn("Message failed to sync with database.");
+    }
+  };
+
+  const handleCheckout = async (order: Order) => {
+    try {
+      await supabaseService.createOrder(order);
+      alert("Form submitted successfully!");
+    } catch (err) {
+      console.error("Order sync failed:", err);
+      alert("Submission failed. Check your Supabase table.");
     }
   };
 
@@ -281,6 +291,7 @@ const AppContent: React.FC = () => {
           item={items.find(i => i.id === viewDetailItemId)!}
           onClose={() => setViewDetailItemId(null)}
           onMessage={() => { setViewDetailItemId(null); setActiveChatId(viewDetailItemId); }}
+          onCheckout={handleCheckout}
           currentUser={currentUser}
         />
       )}

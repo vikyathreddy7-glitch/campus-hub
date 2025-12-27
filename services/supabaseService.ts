@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { MarketplaceItem, Message, ItemStatus } from '../types';
+import { MarketplaceItem, Message, ItemStatus, Order } from '../types';
 
 const SUPABASE_URL = 'https://bxvdbkqucvlmvajofsdy.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CL4ytggTwTADWFGvMicsJg_y6qwFBD_';
@@ -79,6 +79,17 @@ export const supabaseService = {
     
     if (error) {
       console.error('Supabase Error (sendMessage):', error.message, error.details);
+      throw error;
+    }
+  },
+
+  async createOrder(order: Order) {
+    const { error } = await supabase
+      .from('orders')
+      .insert([order]);
+    
+    if (error) {
+      console.error('Supabase Error (createOrder):', error.message, error.details);
       throw error;
     }
   }
