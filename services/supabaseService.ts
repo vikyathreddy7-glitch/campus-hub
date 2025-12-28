@@ -48,7 +48,7 @@ export const supabaseService = {
           posterCollegeId: item.profiles?.student_id || '',
           posterAvatarUrl: item.profiles?.profile_photo,
           createdAt: item.created_at,
-          updatedAt: item.updated_at,
+          // Removed updatedAt mapping from item.updated_at to avoid potential missing column issues
           status: item.status.toUpperCase() as ItemStatus,
           type: ItemType.MARKETPLACE,
         }));
@@ -65,7 +65,6 @@ export const supabaseService = {
           posterCollegeId: item.profiles?.student_id || '',
           posterAvatarUrl: item.profiles?.profile_photo,
           createdAt: item.created_at,
-          updatedAt: item.updated_at,
           status: item.status.toUpperCase() as ItemStatus,
           type: item.type.toUpperCase() as ItemType,
           location: item.location,
@@ -118,7 +117,6 @@ export const supabaseService = {
     const payload: any = {
       title: updates.title,
       description: updates.description,
-      updated_at: new Date().toISOString()
     };
 
     if (type === ItemType.MARKETPLACE) {
@@ -134,8 +132,7 @@ export const supabaseService = {
   async updateItemStatus(itemId: string, type: ItemType, status: ItemStatus, recoveryRecord?: any) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
     const updateData: any = { 
-      status: status.toLowerCase(),
-      updated_at: new Date().toISOString()
+      status: status.toLowerCase()
     };
 
     if (recoveryRecord) {
@@ -145,41 +142,14 @@ export const supabaseService = {
         date: recoveryRecord.date
       };
     }
-
     const { error } = await supabase.from(table).update(updateData).eq('id', itemId);
     if (error) throw new Error(error.message);
-
-    // If deleting, also archive in the dedicated deleted_items table for historical storage
-    if (status === ItemStatus.DELETED) {
-      try {
-        const { data: itemData } = await supabase.from(table).select('*').eq('id', itemId).single();
-        if (itemData) {
-          await supabase.from('deleted_items').insert([{
-            original_id: itemId,
-            user_id: itemData.user_id,
-            item_name: itemData.title,
-            item_type: type,
-            description: itemData.description,
-            location: itemData.location || null,
-            price: itemData.price || 0,
-            image_url: itemData.image_url,
-            category: itemData.category
-          }]);
-        }
-      } catch (archiveErr) {
-        console.warn("Failed to archive in deleted_items table, but main status was updated:", archiveErr);
-      }
-    }
   },
 
   async deleteItem(itemId: string, type: ItemType) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
-    // Remove from main table
     const { error } = await supabase.from(table).delete().eq('id', itemId);
     if (error) throw new Error(error.message);
-    
-    // Also remove from archive if it exists
-    await supabase.from('deleted_items').delete().eq('original_id', itemId);
   },
 
   async fetchMessages(currentUserId: string): Promise<Message[]> {
@@ -340,8 +310,8 @@ export const supabaseService = {
       full_name: user.name,
       gmail: user.email,
       student_id: user.collegeId,
-      profile_photo: user.avatarUrl,
-      updated_at: new Date().toISOString()
+      profile_photo: user.avatarUrl
+      // Removed manual updated_at to fix schema cache error
     }, { 
       onConflict: 'id' 
     });
@@ -353,8 +323,7 @@ export const supabaseService = {
           full_name: user.name,
           gmail: user.email,
           student_id: user.collegeId,
-          profile_photo: user.avatarUrl,
-          updated_at: new Date().toISOString()
+          profile_photo: user.avatarUrl
         }, { 
           onConflict: 'student_id' 
         });
