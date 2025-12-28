@@ -13,9 +13,10 @@ interface ItemDetailModalProps {
   onAddToCart?: (item: MarketplaceItem) => void;
   onUpdateStatus?: (itemId: string, status: ItemStatus, recovery?: any) => void;
   onUpdateItem?: (id: string, updates: Partial<MarketplaceItem>) => Promise<void>;
+  onDeleteListing?: (id: string) => Promise<void>;
 }
 
-const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMessage, onCheckout, onReport, currentUser, onAddToCart, onUpdateStatus, onUpdateItem }) => {
+const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMessage, onCheckout, onReport, currentUser, onAddToCart, onUpdateStatus, onUpdateItem, onDeleteListing }) => {
   const navigate = useNavigate();
   const [isReporting, setIsReporting] = useState(false);
   const [reportReason, setReportReason] = useState('');
@@ -71,6 +72,21 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
     }
   };
 
+  const handleDelete = async () => {
+    if (!onDeleteListing) return;
+    if (!window.confirm('Are you sure you want to permanently delete this listing? It will be removed from the marketplace for everyone.')) return;
+    
+    setIsSubmitting(true);
+    try {
+      await onDeleteListing(item.id);
+      onClose();
+    } catch (err) {
+      alert('Failed to delete listing. Please check your connection.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRecoveredSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setRecoveryError(null);
@@ -105,11 +121,6 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleGoToMyListings = () => {
-    onClose();
-    navigate('/my-listings');
   };
 
   const isEdited = item.updatedAt && 
@@ -296,20 +307,6 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                       </form>
                     ) : (
                       <div className="flex flex-col gap-4">
-                        <div className="flex gap-3">
-                           <button 
-                             onClick={handleGoToMyListings}
-                             className="flex-1 bg-blue-50 hover:bg-blue-100 border border-blue-100 py-4 rounded-2xl text-center transition-all group"
-                           >
-                             <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest group-hover:scale-105 transition-transform">My Listings</p>
-                           </button>
-                           <button 
-                             onClick={() => setIsEditingMode(true)}
-                             className="flex-1 bg-gray-50 hover:bg-gray-100 border border-gray-100 py-4 rounded-2xl text-center transition-all group"
-                           >
-                             <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest group-hover:scale-105 transition-transform">Edit Item</p>
-                           </button>
-                        </div>
                         <button 
                           onClick={() => item.type === ItemType.MARKETPLACE ? handleStatusUpdate(ItemStatus.SOLD) : setIsRecovering(true)}
                           className="w-full bg-green-600 text-white font-black py-5 rounded-[2rem] text-sm uppercase tracking-widest shadow-xl shadow-green-100 active:scale-95 transition-all flex items-center justify-center gap-2"
@@ -317,8 +314,24 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                           </svg>
-                          {item.type === ItemType.MARKETPLACE ? 'Mark as Sold' : item.type === ItemType.LOST ? 'Mark as Recovered' : 'Mark as Found'}
+                          {item.type === ItemType.MARKETPLACE ? 'Mark as Sold' : item.type === ItemType.LOST ? 'Recovered' : 'Exchanged'}
                         </button>
+                        
+                        <div className="flex gap-3">
+                           <button 
+                             onClick={() => setIsEditingMode(true)}
+                             className="flex-1 bg-gray-50 hover:bg-gray-100 border border-gray-100 py-4 rounded-2xl text-center transition-all group"
+                           >
+                             <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest group-hover:scale-105 transition-transform">Edit Item</p>
+                           </button>
+                           <button 
+                            onClick={handleDelete}
+                            disabled={isSubmitting}
+                            className="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-2xl text-xs uppercase tracking-widest border border-red-100 hover:bg-red-100 transition-all flex items-center justify-center"
+                          >
+                            {isSubmitting ? <div className="w-4 h-4 border-2 border-red-200 border-t-red-600 rounded-full animate-spin" /> : 'Delete'}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -365,7 +378,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                         onClick={() => { onAddToCart?.(item); onClose(); }}
                         className="w-full bg-white border-2 border-gray-900 text-gray-900 font-black py-5 rounded-[2rem] text-sm uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95"
                       >
-                        Add to Cart
+                        Add to Watchlist
                       </button>
                     )}
                     <button 

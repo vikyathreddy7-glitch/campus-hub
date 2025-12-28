@@ -118,10 +118,10 @@ export const supabaseService = {
     const payload: any = {
       title: updates.title,
       description: updates.description,
+      updated_at: new Date().toISOString()
     };
 
     if (type === ItemType.MARKETPLACE) {
-      payload.updated_at = new Date().toISOString();
       payload.price = updates.price;
     } else {
       payload.location = updates.location;
@@ -134,12 +134,9 @@ export const supabaseService = {
   async updateItemStatus(itemId: string, type: ItemType, status: ItemStatus, recoveryRecord?: any) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
     const updateData: any = { 
-      status: status.toLowerCase()
+      status: status.toLowerCase(),
+      updated_at: new Date().toISOString()
     };
-    
-    if (type === ItemType.MARKETPLACE) {
-      updateData.updated_at = new Date().toISOString();
-    }
 
     if (recoveryRecord) {
       updateData.recovery_record = {
@@ -148,14 +145,41 @@ export const supabaseService = {
         date: recoveryRecord.date
       };
     }
+
     const { error } = await supabase.from(table).update(updateData).eq('id', itemId);
     if (error) throw new Error(error.message);
+
+    // If deleting, also archive in the dedicated deleted_items table for historical storage
+    if (status === ItemStatus.DELETED) {
+      try {
+        const { data: itemData } = await supabase.from(table).select('*').eq('id', itemId).single();
+        if (itemData) {
+          await supabase.from('deleted_items').insert([{
+            original_id: itemId,
+            user_id: itemData.user_id,
+            item_name: itemData.title,
+            item_type: type,
+            description: itemData.description,
+            location: itemData.location || null,
+            price: itemData.price || 0,
+            image_url: itemData.image_url,
+            category: itemData.category
+          }]);
+        }
+      } catch (archiveErr) {
+        console.warn("Failed to archive in deleted_items table, but main status was updated:", archiveErr);
+      }
+    }
   },
 
   async deleteItem(itemId: string, type: ItemType) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
+    // Remove from main table
     const { error } = await supabase.from(table).delete().eq('id', itemId);
     if (error) throw new Error(error.message);
+    
+    // Also remove from archive if it exists
+    await supabase.from('deleted_items').delete().eq('original_id', itemId);
   },
 
   async fetchMessages(currentUserId: string): Promise<Message[]> {
@@ -192,8 +216,7 @@ export const supabaseService = {
           id: receiverId,
           full_name: receiverInfo.name,
           student_id: receiverInfo.collegeId,
-          profile_photo: receiverInfo.avatarUrl,
-          updated_at: new Date().toISOString()
+          profile_photo: receiverInfo.avatarUrl
         }, { onConflict: 'id' });
       } catch (profileError: any) {
         console.warn("Failed to lazy-sync receiver profile:", profileError.message);
@@ -294,20 +317,14 @@ export const supabaseService = {
       throw new Error(`DATABASE_ERROR: ${insertError.message}`);
     }
 
-    // COMMUNITY MODERATION ENGINE
-    // Check if this item has crossed the 5-report threshold
     const { count, error: countError } = await supabase
       .from('reports')
       .select('*', { count: 'exact', head: true })
       .eq('item_id', report.item_id);
 
     if (!countError && count !== null && count >= 5) {
-      console.warn(`Item ${report.item_id} has ${count} reports. Triggering auto-removal.`);
-      
-      // 1. Remove item from public view
       await this.updateItemStatus(report.item_id, report.item_type, ItemStatus.DELETED);
 
-      // 2. Send warning notification to poster
       await this.addNotification(report.poster_id, {
         title: "Item Removed (Moderation)",
         message: `Your item '${report.item_title}' has been removed following multiple community reports. If this is repeated for the next time your account will be banned for the next 7 days.`,

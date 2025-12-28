@@ -13,18 +13,10 @@ const CAROUSEL_SLIDES = [
   {
     id: 1,
     title: "Campus Hub",
-    subtitle: "Buy & Sell • Rent • Current & Borrow • Lost & Found",
+    subtitle: "Buy & Sell • Lost & Found",
     footer: "For verified campus students only",
     image: "https://images.unsplash.com/photo-1541339907198-e087563f975b?auto=format&fit=crop&q=80&w=1200", 
     icon: "✅"
-  },
-  {
-    id: 2,
-    title: "Rent & Borrow",
-    subtitle: "Easily rent and borrow useful items from students in your college community.",
-    footer: "",
-    image: "https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&q=80&w=1200", 
-    icon: "💼"
   },
   {
     id: 3,
@@ -131,7 +123,7 @@ const Home: React.FC<HomeProps> = ({ items, onOpenChat, onViewDetail }) => {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-base font-black text-gray-800 tracking-tight uppercase tracking-widest">Recently Listed Items</h2>
           <Link to="/marketplace" className="text-[10px] font-bold text-gray-400 flex items-center gap-1 hover:text-blue-600 transition-colors uppercase tracking-widest">
-            View Market <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+            View Market <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
           </Link>
         </div>
 

@@ -144,8 +144,7 @@ const AppContent: React.FC = () => {
   const handleUpdateItem = async (id: string, updates: Partial<MarketplaceItem>) => {
     const item = items.find(i => i.id === id);
     if (!item) return;
-    const newUpdatedAt = new Date().toISOString();
-    setItems(prev => prev.map(it => it.id === id ? {...it, ...updates, updatedAt: newUpdatedAt} : it));
+    setItems(prev => prev.map(it => it.id === id ? {...it, ...updates} : it));
     try {
       await supabaseService.updateItemDetails(id, item.type, updates);
     } catch (err: any) {
@@ -167,11 +166,45 @@ const AppContent: React.FC = () => {
   const handleDeleteItem = async (id: string) => {
     const item = items.find(i => i.id === id);
     if (!item) return;
+    
+    // Perform a soft delete (archive)
     setItems(prev => prev.map(it => it.id === id ? { ...it, status: ItemStatus.DELETED } : it));
+    
     try {
       await supabaseService.updateItemStatus(id, item.type, ItemStatus.DELETED);
     } catch (err: any) {
-      console.error("Archive sync failed:", err.message);
+      console.error("Soft delete sync failed:", err.message);
+      syncAllData(true);
+    }
+  };
+
+  const handleRestoreItem = async (id: string) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    
+    setItems(prev => prev.map(it => it.id === id ? { ...it, status: ItemStatus.ACTIVE } : it));
+    
+    try {
+      await supabaseService.updateItemStatus(id, item.type, ItemStatus.ACTIVE);
+    } catch (err: any) {
+      console.error("Restore sync failed:", err.message);
+      syncAllData(true);
+    }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    const prevItems = [...items];
+    setItems(prev => prev.filter(it => it.id !== id));
+
+    try {
+      await supabaseService.deleteItem(id, item.type);
+    } catch (err: any) {
+      console.error("Permanent delete sync failed:", err.message);
+      setItems(prevItems);
+      throw err;
     }
   };
 
@@ -336,7 +369,7 @@ const AppContent: React.FC = () => {
           <Route path="/lost-found" element={<LostAndFound items={items} onUpdateStatus={handleUpdateStatus} onOpenChat={(id) => { const item = items.find(i=>i.id===id); if(item) setActiveOtherUserId(item.posterId); }} onViewDetail={setViewDetailItemId} currentUser={currentUser} />} />
           <Route path="/notifications" element={<Notifications notifications={notifications} onMarkRead={handleMarkRead} onClearAll={handleClearNotifications} onViewItem={setViewDetailItemId} />} />
           <Route path="/cart" element={<CartView cartItems={cartItems} onRemoveItem={handleRemoveFromCart} onOpenChat={(id) => { const item = items.find(i=>i.id===id); if(item) setActiveOtherUserId(item.posterId); }} onViewDetail={setViewDetailItemId} />} />
-          <Route path="/my-listings" element={<MyListings items={items.filter(i => i.posterId === currentUser.id)} onDelete={handleDeleteItem} />} />
+          <Route path="/my-listings" element={<MyListings items={items.filter(i => i.posterId === currentUser.id)} onDelete={handleDeleteItem} onRestore={handleRestoreItem} onPermanentDelete={handlePermanentDelete} />} />
         </Routes>
       </main>
 
@@ -372,6 +405,7 @@ const AppContent: React.FC = () => {
           onAddToCart={handleAddToCart} 
           onUpdateStatus={handleUpdateStatus} 
           onUpdateItem={handleUpdateItem} 
+          onDeleteListing={handleDeleteItem}
         />
       )}
       {isInboxOpen && (
