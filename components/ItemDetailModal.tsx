@@ -72,19 +72,9 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
     }
   };
 
-  const handleDelete = async () => {
-    if (!onDeleteListing) return;
-    if (!window.confirm('Are you sure you want to permanently delete this listing? It will be removed from the marketplace for everyone.')) return;
-    
-    setIsSubmitting(true);
-    try {
-      await onDeleteListing(item.id);
-      onClose();
-    } catch (err) {
-      alert('Failed to delete listing. Please check your connection.');
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleMyListings = () => {
+    onClose();
+    navigate('/my-listings');
   };
 
   const handleRecoveredSubmit = (e: React.FormEvent) => {
@@ -325,18 +315,20 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest group-hover:scale-105 transition-transform">Edit Item</p>
                            </button>
                            <button 
-                            onClick={handleDelete}
-                            disabled={isSubmitting}
-                            className="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-2xl text-xs uppercase tracking-widest border border-red-100 hover:bg-red-100 transition-all flex items-center justify-center"
+                            onClick={handleMyListings}
+                            className="flex-1 bg-blue-50 text-blue-600 font-black py-4 rounded-2xl text-xs uppercase tracking-widest border border-blue-100 hover:bg-blue-100 transition-all flex items-center justify-center gap-2"
                           >
-                            {isSubmitting ? <div className="w-4 h-4 border-2 border-red-200 border-t-red-600 rounded-full animate-spin" /> : 'Delete'}
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                            </svg>
+                            My Listings
                           </button>
                         </div>
                       </div>
                     )}
                   </div>
                 ) : isReporting ? (
-                  <form onSubmit={handleReport} className="p-6 bg-red-50/50 border border-red-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <form onSubmit={handleReport} className="p-6 bg-red-50/50 border border-red-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     {reportSuccess ? (
                       <div className="py-8 text-center space-y-4 animate-in zoom-in duration-300">
                         <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl">✓</div>

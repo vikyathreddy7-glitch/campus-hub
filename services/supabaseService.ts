@@ -48,7 +48,6 @@ export const supabaseService = {
           posterCollegeId: item.profiles?.student_id || '',
           posterAvatarUrl: item.profiles?.profile_photo,
           createdAt: item.created_at,
-          // Removed updatedAt mapping from item.updated_at to avoid potential missing column issues
           status: item.status.toUpperCase() as ItemStatus,
           type: ItemType.MARKETPLACE,
         }));
@@ -112,6 +111,37 @@ export const supabaseService = {
     if (error) throw new Error(error.message);
   },
 
+  async deleteItem(itemId: string, type: ItemType, itemTitle?: string, userId?: string) {
+    // Before deleting, store a record in the archive log if metadata is provided
+    if (itemTitle && userId) {
+      try {
+        await supabase.from('deleted_items_archive').insert([{
+          item_name: itemTitle,
+          item_type: type,
+          user_id: userId,
+          original_item_id: itemId
+        }]);
+      } catch (archiveError) {
+        console.warn("Archiving failed but proceeding with deletion:", archiveError);
+      }
+    }
+
+    const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
+    const { error } = await supabase.from(table).delete().eq('id', itemId);
+    if (error) throw new Error(error.message);
+  },
+
+  async fetchDeletedArchive(userId: string) {
+    const { data, error } = await supabase
+      .from('deleted_items_archive')
+      .select('*')
+      .eq('user_id', userId)
+      .order('deletion_date', { ascending: false });
+    
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
   async updateItemDetails(itemId: string, type: ItemType, updates: Partial<MarketplaceItem>) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
     const payload: any = {
@@ -143,12 +173,6 @@ export const supabaseService = {
       };
     }
     const { error } = await supabase.from(table).update(updateData).eq('id', itemId);
-    if (error) throw new Error(error.message);
-  },
-
-  async deleteItem(itemId: string, type: ItemType) {
-    const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
-    const { error } = await supabase.from(table).delete().eq('id', itemId);
     if (error) throw new Error(error.message);
   },
 
@@ -311,7 +335,6 @@ export const supabaseService = {
       gmail: user.email,
       student_id: user.collegeId,
       profile_photo: user.avatarUrl
-      // Removed manual updated_at to fix schema cache error
     }, { 
       onConflict: 'id' 
     });
