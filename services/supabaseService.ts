@@ -132,7 +132,7 @@ export const supabaseService = {
         .select('*')
         .eq('is_active', true)
         .order('order_index', { ascending: true })
-        .limit(6); // Increased limit to allow more slides
+        .limit(6);
       
       if (error) throw new Error(error.message);
       
@@ -147,7 +147,6 @@ export const supabaseService = {
         order_index: Number(slide.order_index || 0)
       })) as CarouselSlide[];
 
-      // Fallback defaults if DB has fewer than 3 slides
       if (dbSlides.length < 3) {
         const defaults: CarouselSlide[] = [
           {
@@ -181,7 +180,6 @@ export const supabaseService = {
             order_index: 2
           }
         ];
-        // Combine db slides with defaults, ensuring uniqueness by title/id if needed, but here we just take enough to make 3
         const combined = [...dbSlides];
         for (const def of defaults) {
           if (combined.length >= 3) break;
@@ -383,10 +381,10 @@ export const supabaseService = {
 
   async updateItemDetails(itemId: string, type: ItemType, updates: Partial<MarketplaceItem>) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
+    // Removed updated_at as it might not exist in schema cache
     const payload: any = {
       title: safeString(updates.title),
-      description: safeString(updates.description),
-      updated_at: new Date().toISOString()
+      description: safeString(updates.description)
     };
 
     if (type === ItemType.MARKETPLACE) {
@@ -401,15 +399,15 @@ export const supabaseService = {
 
   async updateItemStatus(itemId: string, type: ItemType, status: ItemStatus, recoveryRecord?: any) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
+    // Removed updated_at as it might not exist in schema cache
     const updateData: any = { 
-      status: status.toLowerCase(),
-      updated_at: new Date().toISOString()
+      status: status.toLowerCase()
     };
 
     if (recoveryRecord) {
       updateData.recovery_record = {
-        receiver_name: safeString(recoveryRecord.receiver_name),
-        college_id: safeString(recoveryRecord.college_id),
+        receiver_name: safeString(recoveryRecord.receiverName),
+        college_id: safeString(recoveryRecord.collegeId),
         date: safeString(recoveryRecord.date)
       };
     }

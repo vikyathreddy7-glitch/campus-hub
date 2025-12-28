@@ -2,7 +2,6 @@
 import React, { useState, useRef } from 'react';
 import { ItemType, MarketplaceItem, ItemStatus, User } from '../types';
 import { MARKETPLACE_CATEGORIES, LOST_FOUND_CATEGORIES } from '../constants';
-import { geminiService } from '../services/geminiService';
 
 interface UploadModalProps {
   onClose: () => void;
@@ -22,7 +21,6 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onAdd, type: initial
     type: initialType
   });
   const [image, setImage] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories = formData.type === ItemType.MARKETPLACE 
@@ -47,24 +45,9 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onAdd, type: initial
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = async () => {
+      reader.onloadend = () => {
         const base64 = reader.result as string;
         setImage(base64);
-        setIsAnalyzing(true);
-        try {
-          const analysis = await geminiService.analyzeItemImage(base64);
-          if (analysis) {
-            setFormData(prev => ({
-              ...prev,
-              title: toStr(analysis.title),
-              description: toStr(analysis.description),
-              category: categories.find(c => toStr(c).toLowerCase().includes(toStr(analysis.category).toLowerCase())) || categories[categories.length - 1]
-            }));
-          }
-        } catch (err) {
-          console.warn("AI analysis failed or returned invalid format", err);
-        }
-        setIsAnalyzing(false);
       };
       reader.readAsDataURL(file);
     }
@@ -203,17 +186,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onAdd, type: initial
               className={`aspect-[1.5/1] bg-white border-2 border-dashed border-gray-100 rounded-[2rem] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all overflow-hidden relative shadow-sm`}
             >
               {image ? (
-                <>
-                  <img src={image} className="w-full h-full object-cover" alt="" />
-                  {isAnalyzing && (
-                    <div className="absolute inset-0 bg-white/70 flex items-center justify-center backdrop-blur-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="text-xs font-black text-blue-600">Smart Analyzing...</span>
-                      </div>
-                    </div>
-                  )}
-                </>
+                <img src={image} className="w-full h-full object-cover" alt="" />
               ) : (
                 <div className="text-center">
                   <span className="text-3xl mb-2 block">📸</span>
