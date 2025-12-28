@@ -69,7 +69,7 @@ export const supabaseService = {
           location: item.location,
           recoveryRecord: item.recovery_record ? {
             receiverName: item.recovery_record.receiver_name,
-            collegeId: item.recovery_record.college_id,
+            college_id: item.recovery_record.college_id,
             date: item.recovery_record.date
           } : undefined
         }));
@@ -109,10 +109,49 @@ export const supabaseService = {
 
     const { error } = await supabase.from(table).insert([payload]);
     if (error) throw new Error(error.message);
+    
+    // Trigger broadast after item is successfully added
+    await this.broadcastNewItemNotification(item);
+  },
+
+  async broadcastNewItemNotification(item: MarketplaceItem) {
+    try {
+      // 1. Fetch all profile IDs
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .neq('id', item.posterId); // Don't notify the poster
+
+      if (profileError || !profiles) return;
+
+      // 2. Prepare bulk notifications
+      const title = item.type === ItemType.MARKETPLACE 
+        ? `New for Sale: ${item.title}` 
+        : `New ${item.type === ItemType.LOST ? 'Lost' : 'Found'} Report`;
+        
+      const message = `${item.posterName} posted a new ${item.type.toLowerCase()} item: ${item.title}. Check it out now!`;
+
+      const notificationInserts = profiles.map(profile => ({
+        user_id: profile.id,
+        title: title,
+        message: message,
+        type: item.type,
+        item_id: item.id,
+        read: false
+      }));
+
+      // 3. Bulk insert (Supabase handles up to thousands usually, otherwise chunk it)
+      const { error: notifyError } = await supabase
+        .from('notifications')
+        .insert(notificationInserts);
+
+      if (notifyError) console.warn("Broadcast notification failed:", notifyError.message);
+    } catch (err) {
+      console.error("Broadcast failed:", err);
+    }
   },
 
   async deleteItem(itemId: string, type: ItemType, itemTitle?: string, userId?: string) {
-    // Before deleting, store a record in the archive log if metadata is provided
     if (itemTitle && userId) {
       try {
         await supabase.from('deleted_items_archive').insert([{
