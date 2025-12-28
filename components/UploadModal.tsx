@@ -29,6 +29,20 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onAdd, type: initial
     ? MARKETPLACE_CATEGORIES.filter(c => c !== 'All')
     : LOST_FOUND_CATEGORIES.filter(c => c !== 'All');
 
+  /**
+   * Defensive string conversion to prevent [object Object]
+   */
+  const toStr = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'string') return val === '[object Object]' ? '' : val;
+    if (typeof val === 'object') {
+      if (val.text && typeof val.text === 'string') return val.text;
+      if (val.title && typeof val.title === 'string') return val.title;
+      return '';
+    }
+    return String(val) === '[object Object]' ? '' : String(val);
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -37,14 +51,18 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onAdd, type: initial
         const base64 = reader.result as string;
         setImage(base64);
         setIsAnalyzing(true);
-        const analysis = await geminiService.analyzeItemImage(base64);
-        if (analysis) {
-          setFormData(prev => ({
-            ...prev,
-            title: analysis.title,
-            description: analysis.description,
-            category: categories.find(c => c.toLowerCase().includes(analysis.category.toLowerCase())) || categories[categories.length - 1]
-          }));
+        try {
+          const analysis = await geminiService.analyzeItemImage(base64);
+          if (analysis) {
+            setFormData(prev => ({
+              ...prev,
+              title: toStr(analysis.title),
+              description: toStr(analysis.description),
+              category: categories.find(c => toStr(c).toLowerCase().includes(toStr(analysis.category).toLowerCase())) || categories[categories.length - 1]
+            }));
+          }
+        } catch (err) {
+          console.warn("AI analysis failed or returned invalid format", err);
         }
         setIsAnalyzing(false);
       };
@@ -56,14 +74,13 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onAdd, type: initial
     e.preventDefault();
     if (!image || !formData.category) return;
 
-    // Fix: Use a valid UUID instead of Math.random string to satisfy database constraints
     const newItem: MarketplaceItem = {
       id: crypto.randomUUID(),
-      title: formData.title,
-      description: formData.description,
+      title: toStr(formData.title),
+      description: toStr(formData.description),
       price: formData.type === ItemType.MARKETPLACE ? Number(formData.price) : 0,
-      category: formData.category,
-      location: formData.type !== ItemType.MARKETPLACE ? formData.location : undefined,
+      category: toStr(formData.category),
+      location: formData.type !== ItemType.MARKETPLACE ? toStr(formData.location) : undefined,
       imageUrl: image,
       posterId: currentUser.id,
       posterName: currentUser.name,

@@ -24,7 +24,7 @@ const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat
           </button>
           <div>
             <h2 className="text-2xl font-black text-gray-900 tracking-tight">Saved Items</h2>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Your Watchlist</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Your Cart</p>
           </div>
         </div>
       </header>
@@ -72,9 +72,9 @@ const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat
             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center text-5xl mb-6">
               🔖
             </div>
-            <h3 className="text-xl font-black text-gray-900 mb-2">Watchlist is empty</h3>
+            <h3 className="text-xl font-black text-gray-900 mb-2">Cart is empty</h3>
             <p className="text-sm font-bold text-gray-500 max-w-xs text-center mx-auto">
-              Save items you're interested in by adding them to your watchlist.
+              Save items you're interested in by adding them to your cart.
             </p>
             <button 
               onClick={() => navigate('/marketplace')}

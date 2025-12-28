@@ -25,7 +25,6 @@ const Notifications: React.FC<NotificationsProps> = ({ notifications, onMarkRead
       <div className="px-6 space-y-4 pb-24">
         {notifications.length > 0 ? (
           notifications.map(notif => {
-            // Fix: Removed reference to non-existent ItemType.RENTAL to resolve error on line 28
             const isMarket = notif.type === ItemType.MARKETPLACE;
             const isLost = notif.type === ItemType.LOST;
             

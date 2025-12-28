@@ -12,8 +12,6 @@ interface ItemCardProps {
 }
 
 const ItemCard: React.FC<ItemCardProps> = ({ item, onUpdateStatus, onMessage, onViewDetail, currentUser }) => {
-  const [isRecovering, setIsRecovering] = useState(false);
-  const [recoveryForm, setRecoveryForm] = useState({ name: '', rollId: '' });
   const isOwner = item.posterId === currentUser.id;
 
   return (
@@ -61,7 +59,7 @@ const ItemCard: React.FC<ItemCardProps> = ({ item, onUpdateStatus, onMessage, on
               isOwner ? 'bg-slate-900 text-white shadow-slate-100' : 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-indigo-100'
             }`}
           >
-            {isOwner ? 'Mark Closed' : 'Contact Student'}
+            {isOwner ? 'Mark Sold' : 'Contact Student'}
           </button>
         </div>
       </div>

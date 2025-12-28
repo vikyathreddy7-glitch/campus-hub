@@ -59,6 +59,7 @@ export interface Message {
   senderRollNumber: string;
   text: string;
   timestamp: string;
+  read?: boolean; // Managed locally
 }
 
 export interface ChatThread {
@@ -67,6 +68,17 @@ export interface ChatThread {
   otherUserRollNumber: string;
   otherUserAvatar?: string;
   messages: Message[];
+}
+
+export interface CarouselSlide {
+  id: string;
+  title: string;
+  subtitle: string;
+  footer: string;
+  image_url: string;
+  accent: string;
+  icon: string;
+  order_index?: number;
 }
 
 export interface Notification {

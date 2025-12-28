@@ -13,13 +13,17 @@ import CartView from './components/CartView';
 import UploadModal from './components/UploadModal';
 import MyListings from './components/MyListings';
 import AuthScreen from './components/AuthScreen';
-import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification, Report } from './types';
+import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification, Report, CarouselSlide } from './types';
 import { supabaseService } from './services/supabaseService';
 
 const AppContent: React.FC = () => {
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [chats, setChats] = useState<Message[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [carouselSlides, setCarouselSlides] = useState<CarouselSlide[]>(() => {
+    const cached = localStorage.getItem('hub_cached_slides');
+    return cached ? JSON.parse(cached) : [];
+  });
   const [cartItems, setCartItems] = useState<MarketplaceItem[]>([]);
   const [activeOtherUserId, setActiveOtherUserId] = useState<string | null>(null);
   const [viewDetailItemId, setViewDetailItemId] = useState<string | null>(null);
@@ -32,61 +36,122 @@ const AppContent: React.FC = () => {
     const savedUser = localStorage.getItem('hub_user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
+
+  const [lastSeenMap, setLastSeenMap] = useState<{[key: string]: string}>(() => {
+    const saved = localStorage.getItem('hub_last_seen');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   const [isLoading, setIsLoading] = useState(true);
   const location = useLocation();
+
+  const processedChats = useMemo(() => {
+    if (!currentUser) return chats;
+    return chats.map(m => {
+      const otherId = m.senderId === currentUser.id ? m.receiverId : m.senderId;
+      const seenTimestamp = lastSeenMap[otherId] || '1970-01-01';
+      const isUnread = m.senderId !== currentUser.id && new Date(m.timestamp) > new Date(seenTimestamp);
+      return { ...m, read: !isUnread };
+    });
+  }, [chats, currentUser, lastSeenMap]);
+
+  const hasUnreadMessages = useMemo(() => {
+    return processedChats.some(m => !m.read);
+  }, [processedChats]);
+
+  // Priority Sync: Slides and Items for Home Screen
+  const syncCriticalData = async () => {
+    if (!currentUser) return;
+    try {
+      const [fetchedItems, fetchedSlides] = await Promise.all([
+        supabaseService.fetchItems(),
+        supabaseService.fetchCarouselSlides()
+      ]);
+      if (fetchedItems) setItems(fetchedItems);
+      if (fetchedSlides) {
+        setCarouselSlides(fetchedSlides);
+        localStorage.setItem('hub_cached_slides', JSON.stringify(fetchedSlides));
+      }
+    } catch (err) {
+      console.warn("Critical sync failure:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Secondary Sync: Messages and Notifications
+  const syncSecondaryData = async () => {
+    if (!currentUser) return;
+    try {
+      const [fetchedMessages, fetchedNotifs] = await Promise.all([
+        supabaseService.fetchMessages(currentUser.id),
+        supabaseService.fetchNotifications(currentUser.id)
+      ]);
+      setChats(fetchedMessages);
+      setNotifications(fetchedNotifs);
+    } catch (err) {
+      console.warn("Secondary sync failure:", err);
+    }
+  };
 
   const syncAllData = async (silent = false) => {
     if (!currentUser) return;
     if (!silent) setIsRefreshing(true);
     
-    try {
-      const [fetchedItems, fetchedMessages, fetchedNotifs] = await Promise.all([
-        supabaseService.fetchItems(),
-        supabaseService.fetchMessages(currentUser.id),
-        supabaseService.fetchNotifications(currentUser.id)
-      ]);
-      if (fetchedItems) setItems(fetchedItems);
-      setChats(fetchedMessages);
-      setNotifications(fetchedNotifs);
-    } catch (err: any) {
-      console.warn("Data sync failure:", err.message);
-    } finally {
-      if (!silent) setTimeout(() => setIsRefreshing(false), 800);
-      setIsLoading(false);
-    }
+    // Run both priority and secondary in parallel but let the UI know when it's okay to show
+    await Promise.all([syncCriticalData(), syncSecondaryData()]);
+    
+    if (!silent) setIsRefreshing(false);
   };
 
-  // Initial data sync
+  const syncSlides = async () => {
+    const fetchedSlides = await supabaseService.fetchCarouselSlides();
+    setCarouselSlides(fetchedSlides);
+    localStorage.setItem('hub_cached_slides', JSON.stringify(fetchedSlides));
+  };
+
   useEffect(() => {
-    if (!currentUser) { setIsLoading(false); return; }
-    syncAllData();
+    if (!currentUser) { 
+      setIsLoading(false); 
+      return; 
+    }
+    // Initial Load - prioritizing speed for Home view
+    syncCriticalData().then(() => {
+      // Fetch the rest after home is ready
+      syncSecondaryData();
+    });
   }, [currentUser?.id]);
 
-  /**
-   * High-frequency polling for real-time direct chats and notifications.
-   * Refreshes every 0.5 seconds as requested.
-   */
   useEffect(() => {
     if (!currentUser) return;
-
+    // Periodic poll for real-time-ish updates
     const fastSyncInterval = setInterval(async () => {
       try {
-        // We only poll messages and notifications frequently to minimize load while keeping chats "live"
         const [fetchedMessages, fetchedNotifs] = await Promise.all([
           supabaseService.fetchMessages(currentUser.id),
           supabaseService.fetchNotifications(currentUser.id)
         ]);
-        
-        // Update states - React will only re-render if data is different
         setChats(fetchedMessages);
         setNotifications(fetchedNotifs);
-      } catch (err) {
-        // Silent fail for background polling to prevent console noise
-      }
-    }, 500);
-
+      } catch (err) {}
+    }, 5000); // Relaxed frequency to save battery/bandwidth, but enough for a hub
     return () => clearInterval(fastSyncInterval);
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (currentUser && activeOtherUserId) {
+      const chatWithUser = chats.filter(m => m.senderId === activeOtherUserId || m.receiverId === activeOtherUserId);
+      if (chatWithUser.length > 0) {
+        const latestMsg = chatWithUser[chatWithUser.length - 1];
+        const currentSeen = lastSeenMap[activeOtherUserId];
+        if (!currentSeen || new Date(latestMsg.timestamp) > new Date(currentSeen)) {
+          const newMap = { ...lastSeenMap, [activeOtherUserId]: new Date().toISOString() };
+          setLastSeenMap(newMap);
+          localStorage.setItem('hub_last_seen', JSON.stringify(newMap));
+        }
+      }
+    }
+  }, [activeOtherUserId, chats, currentUser?.id]);
 
   const handleLogin = async (user: User) => {
     setCurrentUser(user);
@@ -148,7 +213,7 @@ const AppContent: React.FC = () => {
   const chatThreads = useMemo(() => {
     if (!currentUser) return [];
     const groups: { [key: string]: Message[] } = {};
-    chats.forEach(m => {
+    processedChats.forEach(m => {
       const otherId = m.senderId === currentUser.id ? m.receiverId : m.senderId;
       if (!groups[otherId]) groups[otherId] = [];
       groups[otherId].push(m);
@@ -165,13 +230,15 @@ const AppContent: React.FC = () => {
         messages: sortedMessages
       } as ChatThread;
     }).sort((a, b) => new Date(b.messages[b.messages.length - 1].timestamp).getTime() - new Date(a.messages[a.messages.length - 1].timestamp).getTime());
-  }, [chats, currentUser, items]);
+  }, [processedChats, currentUser, items]);
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#FDFCFE] flex flex-col items-center justify-center">
-        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-xs font-black uppercase tracking-[0.2em] text-indigo-400">Loading Hub</p>
+        <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 animate-pulse shadow-inner">
+           <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">Loading Hub Content</p>
       </div>
     );
   }
@@ -201,11 +268,19 @@ const AppContent: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </button>
-          <button onClick={() => setIsInboxOpen(true)} className="relative p-2 text-slate-400 hover:text-indigo-600 transition-colors">
+          
+          <button 
+            onClick={() => setIsInboxOpen(true)} 
+            className={`relative p-2 transition-all rounded-full ${hasUnreadMessages ? 'text-indigo-600 animate-pulse bg-indigo-50 ring-2 ring-indigo-200 ring-offset-2' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+            title="Messages"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-            {chats.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full border-2 border-white"></span>}
+            {hasUnreadMessages && (
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white shadow-sm"></span>
+            )}
           </button>
-          <Link to="/notifications" className="relative p-2 text-slate-400 hover:text-indigo-600 transition-colors">
+
+          <Link to="/notifications" className="relative p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Notifications">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
             {notifications.some(n => !n.read) && <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>}
           </Link>
@@ -214,7 +289,7 @@ const AppContent: React.FC = () => {
 
       <main className="flex-grow">
         <Routes>
-          <Route path="/" element={<Home items={items} onOpenChat={(id) => setActiveOtherUserId(items.find(i=>i.id===id)?.posterId || null)} onViewDetail={setViewDetailItemId} currentUser={currentUser} />} />
+          <Route path="/" element={<Home items={items} carouselSlides={carouselSlides} onOpenChat={(id) => setActiveOtherUserId(items.find(i=>i.id===id)?.posterId || null)} onViewDetail={setViewDetailItemId} currentUser={currentUser} onRefreshSlides={syncSlides} />} />
           <Route path="/marketplace" element={<Marketplace items={items.filter(i => i.type === ItemType.MARKETPLACE)} onUpdateStatus={handleUpdateStatus} onOpenChat={(id) => setActiveOtherUserId(items.find(i=>i.id===id)?.posterId || null)} onViewDetail={setViewDetailItemId} currentUser={currentUser} onAddToCart={(i) => setCartItems(prev => [...prev, i])} cartCount={cartItems.length} />} />
           <Route path="/lost-found" element={<LostAndFound items={items} onUpdateStatus={handleUpdateStatus} onOpenChat={(id) => setActiveOtherUserId(items.find(i=>i.id===id)?.posterId || null)} onViewDetail={setViewDetailItemId} currentUser={currentUser} />} />
           <Route path="/notifications" element={<Notifications notifications={notifications} onMarkRead={async (id) => { await supabaseService.markNotificationRead(id); setNotifications(n => n.map(x=>x.id===id?{...x,read:true}:x)); }} onClearAll={async () => { await supabaseService.clearNotifications(currentUser.id); setNotifications([]); }} onViewItem={setViewDetailItemId} />} />
@@ -238,7 +313,7 @@ const AppContent: React.FC = () => {
       {viewDetailItemId && items.find(i => i.id === viewDetailItemId) && (
         <ItemDetailModal item={items.find(i => i.id === viewDetailItemId)!} onClose={() => setViewDetailItemId(null)} onMessage={() => { const item = items.find(i=>i.id===viewDetailItemId); if(item) { setViewDetailItemId(null); setActiveOtherUserId(item.posterId); } }} onCheckout={async (order) => { await supabaseService.createOrder(order); }} onReport={async (r) => await supabaseService.submitReport(r)} currentUser={currentUser} onAddToCart={(i) => setCartItems(p=>[...p,i])} onUpdateStatus={handleUpdateStatus} onUpdateItem={handleUpdateItem} onDeleteListing={handleDeleteItem} />
       )}
-      {isInboxOpen && <InboxModal threads={chatThreads} onClose={() => setIsInboxOpen(false)} onSelectThread={(id) => { setActiveOtherUserId(id); setIsInboxOpen(false); }} />}
+      {isInboxOpen && <InboxModal threads={chatThreads} onClose={() => setIsInboxOpen(false)} onSelectThread={(id) => { setActiveOtherUserId(id); setIsInboxOpen(false); }} currentUser={currentUser} />}
       {isProfileOpen && <UserProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onUpdateUser={handleUpdateUser} onLogout={() => { setCurrentUser(null); localStorage.removeItem('hub_user'); setIsProfileOpen(false); }} />}
       {isUploadOpen && <UploadModal onClose={() => setIsUploadOpen(false)} onAdd={handleAddItem} type={ItemType.MARKETPLACE} currentUser={currentUser} />}
     </div>

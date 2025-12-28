@@ -121,8 +121,8 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white w-full max-w-2xl h-[95vh] sm:h-auto sm:max-h-[90vh] rounded-t-[3rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-500">
         <div className="absolute top-6 right-6 z-20">
-          <button onClick={onClose} className="w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-lg rounded-full flex items-center justify-center text-white transition-all shadow-xl">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+          <button onClick={onClose} className="w-10 h-10 bg-white/40 hover:bg-white/60 backdrop-blur-lg rounded-full flex items-center justify-center text-black transition-all shadow-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
@@ -131,7 +131,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
             <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
             <div className="absolute top-6 left-6 flex flex-wrap gap-3">
               <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-xl backdrop-blur-md ${
-                item.type === ItemType.MARKETPLACE ? 'bg-blue-600/80 text-white' : 'bg-red-50/80 text-white'
+                item.type === ItemType.MARKETPLACE ? 'bg-blue-600/80 text-white' : 'bg-white/80 text-black'
               }`}>
                 {item.type}
               </span>
@@ -370,7 +370,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, onClose, onMess
                         onClick={() => { onAddToCart?.(item); onClose(); }}
                         className="w-full bg-white border-2 border-gray-900 text-gray-900 font-black py-5 rounded-[2rem] text-sm uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95"
                       >
-                        Add to Watchlist
+                        Add to Cart
                       </button>
                     )}
                     <button 
