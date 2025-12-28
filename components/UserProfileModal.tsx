@@ -46,15 +46,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUp
     }
   };
 
-  const toggleNotifications = () => {
-    const updatedUser = { ...user, notificationsEnabled: !user.notificationsEnabled };
-    onUpdateUser(updatedUser);
-    localStorage.setItem('hub_user', JSON.stringify(updatedUser));
-  };
-
   const handleSave = async () => {
-    if (editData.collegeId && editData.collegeId.length !== 9) {
-      setError('Roll Number must be 9 characters.');
+    if (editData.collegeId && editData.collegeId.length < 3) {
+      setError('Username must be at least 3 characters.');
       return;
     }
 
@@ -148,9 +142,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUp
                     <input 
                       className={`text-sm font-bold bg-gray-50 border ${error ? 'border-red-300' : 'border-gray-100'} rounded-xl px-3 py-1 w-full focus:ring-2 focus:ring-blue-100 outline-none uppercase text-black`}
                       value={editData.collegeId}
-                      maxLength={9}
                       onChange={(e) => setEditData({ ...editData, collegeId: e.target.value.toUpperCase() })}
-                      placeholder="College Roll ID"
+                      placeholder="Username"
                     />
                     {error && <p className="text-[9px] font-black text-red-500 uppercase mt-1 ml-1">{error}</p>}
                   </div>
@@ -159,7 +152,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUp
                 <>
                   <h2 className="text-2xl font-black text-gray-900 tracking-tight">{user.name}</h2>
                   <div className="flex flex-col mt-0.5">
-                    <p className="text-sm font-bold text-gray-500 uppercase tracking-tight">ID: {user.collegeId}</p>
+                    <p className="text-sm font-bold text-gray-500 uppercase tracking-tight">Username: {user.collegeId}</p>
                     <p className="text-xs font-medium text-gray-400 mt-1 lowercase">{user.email}</p>
                   </div>
                 </>
@@ -184,25 +177,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUp
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
                  </svg>
                </div>
-            </section>
-
-            <section className="bg-gray-50 p-6 rounded-[2rem] border border-gray-100">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">App Settings</h3>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-lg">🔔</div>
-                  <div>
-                    <p className="text-sm font-black text-gray-800 tracking-tight">Global Notifications</p>
-                    <p className="text-[10px] font-bold text-gray-400">Receive alerts for new listings</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={toggleNotifications}
-                  className={`w-14 h-8 rounded-full transition-all relative ${user.notificationsEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
-                >
-                  <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${user.notificationsEnabled ? 'right-1' : 'left-1'}`} />
-                </button>
-              </div>
             </section>
           </div>
         </div>

@@ -14,7 +14,14 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, delay = 1000):
       return await fn();
     } catch (err: any) {
       lastError = err;
-      if (err.message?.includes('fetch') || err.name === 'TypeError') {
+      const errorMessage = err.message || '';
+      // Retry on network errors or transient fetch issues
+      if (
+        errorMessage.includes('fetch') || 
+        err.name === 'TypeError' || 
+        errorMessage.includes('NetworkError') ||
+        errorMessage.includes('Failed to fetch')
+      ) {
         await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
         continue;
       }
@@ -45,7 +52,6 @@ const safeString = (val: any): string => {
   }
 
   if (typeof val === 'object') {
-    // Attempt to extract meaningful text from common object structures returned by Supabase joins or AI
     const commonKeys = ['full_name', 'title', 'text', 'message', 'content', 'name'];
     for (const key of commonKeys) {
       if (val[key] && typeof val[key] === 'string') return val[key];
@@ -127,72 +133,75 @@ export const supabaseService = {
 
   async fetchCarouselSlides(): Promise<CarouselSlide[]> {
     try {
-      const { data, error } = await supabase
-        .from('home_carousel')
-        .select('*')
-        .eq('is_active', true)
-        .order('order_index', { ascending: true })
-        .limit(6);
-      
-      if (error) throw new Error(error.message);
-      
-      const dbSlides = (data || []).map(slide => ({
-        id: safeString(slide.id),
-        title: safeString(slide.title),
-        subtitle: safeString(slide.subtitle),
-        footer: safeString(slide.footer),
-        image_url: safeString(slide.image_url),
-        icon: safeString(slide.icon || '✨'),
-        accent: safeString(slide.accent || 'indigo'),
-        order_index: Number(slide.order_index || 0)
-      })) as CarouselSlide[];
+      return await withRetry(async () => {
+        const { data, error } = await supabase
+          .from('home_carousel')
+          .select('*')
+          .eq('is_active', true)
+          .order('order_index', { ascending: true })
+          .limit(6);
+        
+        if (error) throw new Error(error.message);
+        
+        const dbSlides = (data || []).map(slide => ({
+          id: safeString(slide.id),
+          title: safeString(slide.title),
+          subtitle: safeString(slide.subtitle),
+          footer: safeString(slide.footer),
+          image_url: safeString(slide.image_url),
+          icon: safeString(slide.icon || '✨'),
+          accent: safeString(slide.accent || 'indigo'),
+          order_index: Number(slide.order_index || 0)
+        })) as CarouselSlide[];
 
-      if (dbSlides.length < 3) {
-        const defaults: CarouselSlide[] = [
-          {
-            id: 'default-1',
-            title: 'NITR Hub Welcome',
-            subtitle: 'The centralized gateway for all your campus trading needs.',
-            footer: 'Official Community',
-            image_url: 'https://tlzlgrxlesukzrolrsbz.supabase.co/storage/v1/object/public/hub-assets/nitr_gate_sell.jpg',
-            icon: '🏛️',
-            accent: 'indigo',
-            order_index: 0
-          },
-          {
-            id: 'default-2',
-            title: 'Safe Peer Trading',
-            subtitle: 'Verified listings for books, electronics, and hostel gear.',
-            footer: 'Verified Users Only',
-            image_url: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=2070&auto=format&fit=crop',
-            icon: '✅',
-            accent: 'blue',
-            order_index: 1
-          },
-          {
-            id: 'default-3',
-            title: 'Lost & Found',
-            subtitle: 'Recover your belongings or report found items instantly.',
-            footer: 'Campus Safety',
-            image_url: 'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?q=80&w=2070&auto=format&fit=crop',
-            icon: '🔍',
-            accent: 'rose',
-            order_index: 2
+        if (dbSlides.length < 3) {
+          const defaults: CarouselSlide[] = [
+            {
+              id: 'default-1',
+              title: 'NITR Hub Welcome',
+              subtitle: 'The centralized gateway for all your campus trading needs.',
+              footer: 'Official Community',
+              image_url: 'https://tlzlgrxlesukzrolrsbz.supabase.co/storage/v1/object/public/hub-assets/nitr_gate_sell.jpg',
+              icon: '🏛️',
+              accent: 'indigo',
+              order_index: 0
+            },
+            {
+              id: 'default-2',
+              title: 'Safe Peer Trading',
+              subtitle: 'Verified listings for books, electronics, and hostel gear.',
+              footer: 'Verified Users Only',
+              image_url: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=2070&auto=format&fit=crop',
+              icon: '✅',
+              accent: 'blue',
+              order_index: 1
+            },
+            {
+              id: 'default-3',
+              title: 'Lost & Found',
+              subtitle: 'Recover your belongings or report found items instantly.',
+              footer: 'Campus Safety',
+              image_url: 'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?q=80&w=2070&auto=format&fit=crop',
+              icon: '🔍',
+              accent: 'rose',
+              order_index: 2
+            }
+          ];
+          const combined = [...dbSlides];
+          for (const def of defaults) {
+            if (combined.length >= 3) break;
+            if (!combined.some(s => s.title === def.title)) {
+              combined.push(def);
+            }
           }
-        ];
-        const combined = [...dbSlides];
-        for (const def of defaults) {
-          if (combined.length >= 3) break;
-          if (!combined.some(s => s.title === def.title)) {
-            combined.push(def);
-          }
+          return combined;
         }
-        return combined;
-      }
 
-      return dbSlides;
+        return dbSlides;
+      });
     } catch (err: any) {
-      console.error("Failed to fetch carousel slides:", err.message || "Unknown error");
+      // Quietly log and return defaults to ensure UI doesn't break
+      console.warn("Using fallback carousel slides due to connection issue:", err.message || "Unknown error");
       return [
         {
           id: 'error-fallback-1',
@@ -244,7 +253,7 @@ export const supabaseService = {
             receiverId: safeString(m.receiver_id),
             senderName: safeString(profile?.full_name || 'Unknown'),
             senderRollNumber: safeString(profile?.student_id || ''),
-            senderAvatarUrl: profile?.profile_photo ? safeString(profile.profile_photo) : undefined,
+            senderAvatarUrl: profile?.profile_photo ? safeString(profile.photo) : undefined,
             text: safeString(m.content),
             timestamp: safeString(m.created_at)
           };
@@ -382,7 +391,6 @@ export const supabaseService = {
 
   async updateItemDetails(itemId: string, type: ItemType, updates: Partial<MarketplaceItem>) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
-    // Removed updated_at as it might not exist in schema cache
     const payload: any = {
       title: safeString(updates.title),
       description: safeString(updates.description)
@@ -400,7 +408,6 @@ export const supabaseService = {
 
   async updateItemStatus(itemId: string, type: ItemType, status: ItemStatus, recoveryRecord?: any) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
-    // Removed updated_at as it might not exist in schema cache
     const updateData: any = { 
       status: status.toLowerCase()
     };
