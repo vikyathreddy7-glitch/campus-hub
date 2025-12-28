@@ -8,61 +8,18 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    
-    :root {
-      --primary: #4f46e5;
-      --primary-dark: #3730a3;
-      --secondary: #8b5cf6;
-      --accent: #f43f5e;
-      --bg-soft: #fdfcfe;
-    }
-
     body {
       font-family: 'Plus Jakarta Sans', sans-serif;
-      background: linear-gradient(135deg, #fdfcfe 0%, #f8fafc 100%);
-      color: #1e293b;
+      background-color: #FAF9FF;
       -webkit-tap-highlight-color: transparent;
       overflow-x: hidden;
-      min-height: 100vh;
     }
-
-    .glass {
-      background: rgba(255, 255, 255, 0.75);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-
-    .premium-shadow {
-      box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.04);
-    }
-
     .scrollbar-hide::-webkit-scrollbar {
       display: none;
     }
-
-    .nav-active {
-      color: var(--primary);
-      position: relative;
-    }
-
-    .nav-active::after {
-      content: '';
-      position: absolute;
-      bottom: -4px;
-      width: 4px;
-      height: 4px;
-      border-radius: 50%;
-      background: var(--primary);
-    }
-
-    @keyframes pulse-soft {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.9; }
-    }
-    
-    .animate-pulse-soft {
-      animation: pulse-soft 3s infinite ease-in-out;
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
   </style>
 <script type="importmap">
