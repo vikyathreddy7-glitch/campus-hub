@@ -8,10 +8,9 @@ interface CartViewProps {
   onRemoveItem: (id: string) => void;
   onOpenChat: (id: string) => void;
   onViewDetail: (id: string) => void;
-  onCheckout: () => void;
 }
 
-const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat, onViewDetail, onCheckout }) => {
+const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat, onViewDetail }) => {
   const navigate = useNavigate();
 
   return (
@@ -24,8 +23,8 @@ const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat
             </svg>
           </button>
           <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Your Cart</h2>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Saved for later</p>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Saved Items</h2>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Your Watchlist</p>
           </div>
         </div>
       </header>
@@ -71,40 +70,21 @@ const CartView: React.FC<CartViewProps> = ({ cartItems, onRemoveItem, onOpenChat
         ) : (
           <div className="flex flex-col items-center justify-center py-20 opacity-40">
             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center text-5xl mb-6">
-              🛒
+              🔖
             </div>
-            <h3 className="text-xl font-black text-gray-900 mb-2">Cart is empty</h3>
+            <h3 className="text-xl font-black text-gray-900 mb-2">Watchlist is empty</h3>
             <p className="text-sm font-bold text-gray-500 max-w-xs text-center mx-auto">
-              You haven't added any items to your cart yet. Browse the marketplace to find something useful!
+              Save items you're interested in by adding them to your watchlist.
             </p>
             <button 
               onClick={() => navigate('/marketplace')}
               className="mt-8 bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
             >
-              Start Shopping
+              Start Browsing
             </button>
           </div>
         )}
       </div>
-
-      {cartItems.length > 0 && (
-        <div className="fixed bottom-24 left-6 right-6 z-40 space-y-3">
-          <div className="bg-white/90 backdrop-blur-md border border-gray-100 p-6 rounded-[2.5rem] shadow-2xl flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Value</p>
-              <p className="text-2xl font-black text-gray-900 tracking-tighter">
-                ₹{cartItems.reduce((acc, item) => acc + item.price, 0)}
-              </p>
-            </div>
-            <button 
-              onClick={onCheckout}
-              className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all"
-            >
-              Checkout
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,16 +1,12 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { MarketplaceItem, Message, ItemStatus, ItemType, Order, User, Notification } from '../types';
+import { MarketplaceItem, Message, ItemStatus, ItemType, Order, User, Notification, Report } from '../types';
 
 const SUPABASE_URL = 'https://tlzlgrxlesukzrolrsbz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_aciCXZ6C0oBG8D-GME5WuQ_WnVNOy4j';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/**
- * Helper to wrap async operations with a simple retry logic
- * to handle transient network issues like "Failed to fetch".
- */
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, delay = 1000): Promise<T> {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
@@ -18,7 +14,6 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, delay = 1000):
       return await fn();
     } catch (err: any) {
       lastError = err;
-      // Only retry on network-related errors
       if (err.message?.includes('fetch') || err.name === 'TypeError') {
         await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
         continue;
@@ -30,7 +25,6 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, delay = 1000):
 }
 
 export const supabaseService = {
-  // --- ITEMS ---
   async fetchItems(): Promise<MarketplaceItem[]> {
     try {
       return await withRetry(async () => {
@@ -54,6 +48,7 @@ export const supabaseService = {
           posterCollegeId: item.profiles?.student_id || '',
           posterAvatarUrl: item.profiles?.profile_photo,
           createdAt: item.created_at,
+          updatedAt: item.updated_at,
           status: item.status.toUpperCase() as ItemStatus,
           type: ItemType.MARKETPLACE,
         }));
@@ -70,6 +65,7 @@ export const supabaseService = {
           posterCollegeId: item.profiles?.student_id || '',
           posterAvatarUrl: item.profiles?.profile_photo,
           createdAt: item.created_at,
+          updatedAt: item.updated_at,
           status: item.status.toUpperCase() as ItemStatus,
           type: item.type.toUpperCase() as ItemType,
           location: item.location,
@@ -86,7 +82,6 @@ export const supabaseService = {
       });
     } catch (e: any) {
       console.warn("Fetch items failed after retries:", e.message);
-      // Return empty array to allow UI to render gracefully
       return [];
     }
   },
@@ -118,13 +113,38 @@ export const supabaseService = {
     if (error) throw new Error(error.message);
   },
 
+  async updateItemDetails(itemId: string, type: ItemType, updates: Partial<MarketplaceItem>) {
+    const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
+    const payload: any = {
+      title: updates.title,
+      description: updates.description,
+    };
+
+    if (type === ItemType.MARKETPLACE) {
+      payload.updated_at = new Date().toISOString();
+      payload.price = updates.price;
+    } else {
+      payload.location = updates.location;
+    }
+
+    const { error } = await supabase.from(table).update(payload).eq('id', itemId);
+    if (error) throw new Error(error.message);
+  },
+
   async updateItemStatus(itemId: string, type: ItemType, status: ItemStatus, recoveryRecord?: any) {
     const table = type === ItemType.MARKETPLACE ? 'market_listings' : 'lost_and_found';
-    const updateData: any = { status: status.toLowerCase() };
+    const updateData: any = { 
+      status: status.toLowerCase()
+    };
+    
+    if (type === ItemType.MARKETPLACE) {
+      updateData.updated_at = new Date().toISOString();
+    }
+
     if (recoveryRecord) {
       updateData.recovery_record = {
         receiver_name: recoveryRecord.receiverName,
-        college_id: recoveryRecord.collegeId,
+        college_id: recoveryRecord.college_id,
         date: recoveryRecord.date
       };
     }
@@ -138,7 +158,6 @@ export const supabaseService = {
     if (error) throw new Error(error.message);
   },
 
-  // --- MESSAGES ---
   async fetchMessages(currentUserId: string): Promise<Message[]> {
     try {
       return await withRetry(async () => {
@@ -153,6 +172,7 @@ export const supabaseService = {
           id: m.id,
           itemId: m.item_id,
           senderId: m.sender_id,
+          receiverId: m.receiver_id,
           senderName: m.profiles?.full_name || 'Unknown',
           senderRollNumber: m.profiles?.student_id || '',
           text: m.content,
@@ -165,8 +185,7 @@ export const supabaseService = {
     }
   },
 
-  async sendMessage(senderId: string, receiverId: string, itemId: string, text: string, receiverInfo?: { name: string, collegeId: string, avatarUrl?: string }) {
-    // Lazy upsert the receiver so the message doesn't fail due to FK constraint
+  async sendMessage(senderId: string, receiverId: string, itemId: string | null, text: string, receiverInfo?: { name: string, collegeId: string, avatarUrl?: string }) {
     if (receiverInfo) {
       try {
         await supabase.from('profiles').upsert({
@@ -190,7 +209,6 @@ export const supabaseService = {
     if (error) throw new Error(error.message);
   },
 
-  // --- CART ---
   async syncCart(userId: string, itemIds: string[]) {
     try {
       await supabase.from('cart_items').delete().eq('user_id', userId);
@@ -203,7 +221,6 @@ export const supabaseService = {
     }
   },
 
-  // --- NOTIFICATIONS ---
   async fetchNotifications(userId: string): Promise<Notification[]> {
     try {
       return await withRetry(async () => {
@@ -247,7 +264,6 @@ export const supabaseService = {
     await supabase.from('notifications').delete().eq('user_id', userId);
   },
 
-  // --- ORDERS ---
   async createOrder(order: Order) {
     const { error } = await supabase.from('orders').insert([{
       full_name: order.full_name,
@@ -263,7 +279,44 @@ export const supabaseService = {
     if (error) throw new Error(error.message);
   },
 
-  // --- PROFILES ---
+  async submitReport(report: Report) {
+    const { error: insertError } = await supabase.from('reports').insert([{
+      item_id: report.item_id,
+      reporter_id: report.reporter_id,
+      reporter_name: report.reporter_name,
+      reporter_roll: report.reporter_roll,
+      reason: report.reason,
+      item_title: report.item_title
+    }]);
+
+    if (insertError) {
+      console.error("Supabase report submission failed:", insertError.message);
+      throw new Error(`DATABASE_ERROR: ${insertError.message}`);
+    }
+
+    // COMMUNITY MODERATION ENGINE
+    // Check if this item has crossed the 5-report threshold
+    const { count, error: countError } = await supabase
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('item_id', report.item_id);
+
+    if (!countError && count !== null && count >= 5) {
+      console.warn(`Item ${report.item_id} has ${count} reports. Triggering auto-removal.`);
+      
+      // 1. Remove item from public view
+      await this.updateItemStatus(report.item_id, report.item_type, ItemStatus.DELETED);
+
+      // 2. Send warning notification to poster
+      await this.addNotification(report.poster_id, {
+        title: "Item Removed (Moderation)",
+        message: `Your item '${report.item_title}' has been removed following multiple community reports. If this is repeated for the next time your account will be banned for the next 7 days.`,
+        type: report.item_type,
+        itemId: report.item_id
+      });
+    }
+  },
+
   async upsertProfile(user: User) {
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,

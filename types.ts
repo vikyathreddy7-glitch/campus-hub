@@ -8,7 +8,8 @@ export enum ItemType {
 export enum ItemStatus {
   ACTIVE = 'ACTIVE',
   SOLD = 'SOLD',
-  RECOVERED = 'RECOVERED'
+  RECOVERED = 'RECOVERED',
+  DELETED = 'DELETED'
 }
 
 export interface User {
@@ -41,6 +42,7 @@ export interface MarketplaceItem {
   posterCollegeId: string; 
   posterAvatarUrl?: string;
   createdAt: string;
+  updatedAt?: string;
   status: ItemStatus;
   type: ItemType;
   location?: string;
@@ -50,8 +52,9 @@ export interface MarketplaceItem {
 
 export interface Message {
   id: string;
-  itemId: string;
+  itemId: string | null; // Nullable for general chat
   senderId: string;
+  receiverId: string; 
   senderName: string;
   senderRollNumber: string;
   text: string;
@@ -59,9 +62,10 @@ export interface Message {
 }
 
 export interface ChatThread {
-  itemId: string;
-  itemTitle: string;
-  itemImageUrl?: string;
+  otherUserId: string;
+  otherUserName: string;
+  otherUserRollNumber: string;
+  otherUserAvatar?: string;
   messages: Message[];
 }
 
@@ -86,5 +90,18 @@ export interface Order {
   gmail: string;
   event_date: string;
   message?: string;
+  created_at?: string;
+}
+
+export interface Report {
+  id?: string;
+  item_id: string;
+  reporter_id: string;
+  reporter_name: string;
+  reporter_roll: string;
+  reason: string;
+  item_title: string;
+  poster_id: string;     // Added for moderation
+  item_type: ItemType;   // Added for moderation
   created_at?: string;
 }
