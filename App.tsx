@@ -15,8 +15,6 @@ import MyListings from './components/MyListings';
 import AuthScreen from './components/AuthScreen';
 import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification, Report, CarouselSlide } from './types';
 import { supabaseService } from './services/supabaseService';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import Auth from './components/Auth';
 
 const AppContent: React.FC = () => {
   const [items, setItems] = useState<MarketplaceItem[]>([]);
@@ -336,11 +334,4 @@ const App: React.FC = () => (
   </HashRouter>
 );
 
-// Wrap App with AuthProvider
-const AppWithAuth = () => (
-  <AuthProvider>
-    <App />
-  </AuthProvider>
-);
-
-export default AppWithAuth;
+export default App;
