@@ -203,6 +203,7 @@ const AppContent: React.FC = () => {
       receiverId: recipientId,
       senderName: currentUser.name,
       senderRollNumber: currentUser.collegeId,
+      senderAvatarUrl: currentUser.avatarUrl,
       text,
       timestamp: new Date().toISOString()
     };
@@ -226,7 +227,7 @@ const AppContent: React.FC = () => {
         otherUserId,
         otherUserName: otherMsg?.senderName || seller?.posterName || 'Student User',
         otherUserRollNumber: otherMsg?.senderRollNumber || seller?.posterCollegeId || 'Verified',
-        otherUserAvatar: seller?.posterAvatarUrl,
+        otherUserAvatar: otherMsg?.senderAvatarUrl || seller?.posterAvatarUrl,
         messages: sortedMessages
       } as ChatThread;
     }).sort((a, b) => new Date(b.messages[b.messages.length - 1].timestamp).getTime() - new Date(a.messages[a.messages.length - 1].timestamp).getTime());

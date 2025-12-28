@@ -57,6 +57,7 @@ export interface Message {
   receiverId: string; 
   senderName: string;
   senderRollNumber: string;
+  senderAvatarUrl?: string;
   text: string;
   timestamp: string;
   read?: boolean; // Managed locally

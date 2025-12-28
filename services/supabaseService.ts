@@ -230,7 +230,7 @@ export const supabaseService = {
       return await withRetry(async () => {
         const { data, error } = await supabase
           .from('messages')
-          .select('*, profiles:sender_id(full_name, student_id)')
+          .select('*, profiles:sender_id(full_name, student_id, profile_photo)')
           .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
           .order('created_at', { ascending: true });
         
@@ -244,6 +244,7 @@ export const supabaseService = {
             receiverId: safeString(m.receiver_id),
             senderName: safeString(profile?.full_name || 'Unknown'),
             senderRollNumber: safeString(profile?.student_id || ''),
+            senderAvatarUrl: profile?.profile_photo ? safeString(profile.profile_photo) : undefined,
             text: safeString(m.content),
             timestamp: safeString(m.created_at)
           };

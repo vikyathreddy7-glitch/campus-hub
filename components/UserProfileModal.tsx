@@ -158,7 +158,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUp
               ) : (
                 <>
                   <h2 className="text-2xl font-black text-gray-900 tracking-tight">{user.name}</h2>
-                  <p className="text-sm font-bold text-gray-400">ID: {user.collegeId}</p>
+                  <div className="flex flex-col mt-0.5">
+                    <p className="text-sm font-bold text-gray-500 uppercase tracking-tight">ID: {user.collegeId}</p>
+                    <p className="text-xs font-medium text-gray-400 mt-1 lowercase">{user.email}</p>
+                  </div>
                 </>
               )}
             </div>
