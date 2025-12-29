@@ -1,5 +1,5 @@
 {
-  "name": "NITR Campus Hub",
+  "name": "NITR Connect",
   "description": "A centralized marketplace and lost-and-found platform for the NIT Rourkela campus community.",
   "requestFramePermissions": [
     "camera"

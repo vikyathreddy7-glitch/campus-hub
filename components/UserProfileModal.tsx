@@ -9,10 +9,9 @@ interface UserProfileModalProps {
   onClose: () => void;
   onUpdateUser: (user: User) => void;
   onLogout: () => void;
-  onOpenBranding?: () => void;
 }
 
-const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUpdateUser, onLogout, onOpenBranding }) => {
+const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUpdateUser, onLogout }) => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -161,21 +160,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUp
                  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                </div>
             </section>
-
-            {onOpenBranding && (
-              <section onClick={onOpenBranding} className="bg-slate-900 p-6 rounded-[2rem] border border-slate-800 shadow-xl shadow-slate-100 cursor-pointer active:scale-[0.98] transition-all group">
-                 <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">🎨</div>
-                     <div>
-                       <h3 className="text-base font-black text-white tracking-tight">App Branding</h3>
-                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Logo & Name Settings</p>
-                     </div>
-                   </div>
-                   <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
-                 </div>
-              </section>
-            )}
           </div>
         </div>
 
