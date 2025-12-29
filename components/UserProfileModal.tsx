@@ -9,7 +9,7 @@ interface UserProfileModalProps {
   onClose: () => void;
   onUpdateUser: (user: User) => void;
   onLogout: () => void;
-  onOpenBranding: () => void;
+  onOpenBranding?: () => void;
 }
 
 const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUpdateUser, onLogout, onOpenBranding }) => {
@@ -162,18 +162,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose, onUp
                </div>
             </section>
 
-            <section onClick={onOpenBranding} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-all group hover:border-indigo-200">
-               <div className="flex items-center justify-between">
-                 <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">🎨</div>
-                   <div>
-                     <h3 className="text-base font-black text-gray-900 tracking-tight">App Branding</h3>
-                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Edit Logo & App Name</p>
+            {onOpenBranding && (
+              <section onClick={onOpenBranding} className="bg-slate-900 p-6 rounded-[2rem] border border-slate-800 shadow-xl shadow-slate-100 cursor-pointer active:scale-[0.98] transition-all group">
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                     <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">🎨</div>
+                     <div>
+                       <h3 className="text-base font-black text-white tracking-tight">App Branding</h3>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Logo & Name Settings</p>
+                     </div>
                    </div>
+                   <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                  </div>
-                 <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-300 group-hover:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
-               </div>
-            </section>
+              </section>
+            )}
           </div>
         </div>
 

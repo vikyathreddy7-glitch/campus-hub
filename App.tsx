@@ -34,7 +34,7 @@ const AppContent: React.FC = () => {
   const [isBrandingOpen, setIsBrandingOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // App Branding State
+  // App Branding State - Reading from localStorage for persistence
   const [appName, setAppName] = useState(() => localStorage.getItem('hub_app_name') || 'NITR Hub');
   const [appLogo, setAppLogo] = useState(() => localStorage.getItem('hub_app_logo') || null);
 
@@ -299,7 +299,7 @@ const AppContent: React.FC = () => {
         <ItemDetailModal item={items.find(i => i.id === viewDetailItemId)!} onClose={() => setViewDetailItemId(null)} onMessage={() => { const item = items.find(i=>i.id===viewDetailItemId); if(item) { setViewDetailItemId(null); setActiveOtherUserId(item.posterId); } }} onCheckout={async (order) => { await supabaseService.createOrder(order); }} onReport={async (r) => await supabaseService.submitReport(r)} currentUser={currentUser} onAddToCart={(i) => setCartItems(p=>[...p,i])} onUpdateStatus={handleUpdateStatus} onUpdateItem={handleUpdateItem} onDeleteListing={handleDeleteItem} />
       )}
       {isInboxOpen && <InboxModal threads={chatThreads} onClose={() => setIsInboxOpen(false)} onSelectThread={(id) => { setActiveOtherUserId(id); setIsInboxOpen(false); }} currentUser={currentUser} />}
-      {isProfileOpen && <UserProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onUpdateUser={handleUpdateUser} onLogout={() => { setCurrentUser(null); localStorage.removeItem('hub_user'); setIsProfileOpen(false); }} onOpenBranding={() => { setIsProfileOpen(false); setIsBrandingOpen(true); }} />}
+      {isProfileOpen && <UserProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onUpdateUser={handleUpdateUser} onLogout={() => { setCurrentUser(null); localStorage.removeItem('hub_user'); setIsProfileOpen(false); }} onOpenBranding={() => setIsBrandingOpen(true)} />}
       {isUploadOpen && <UploadModal onClose={() => setIsUploadOpen(false)} onAdd={handleAddItem} type={ItemType.MARKETPLACE} currentUser={currentUser} />}
       {isBrandingOpen && <BrandingModal onClose={() => setIsBrandingOpen(false)} currentName={appName} currentLogo={appLogo} onUpdate={handleUpdateBranding} />}
     </div>
