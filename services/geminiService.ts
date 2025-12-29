@@ -5,8 +5,8 @@ export class GeminiService {
   private ai: GoogleGenAI;
 
   constructor() {
-    // Correct initialization with named parameter and direct process.env.API_KEY usage
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Correct initialization with named parameter and direct process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' usage
+    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
   }
 
   async analyzeItemImage(base64Image: string) {
