@@ -13,6 +13,7 @@ import CartView from './components/CartView';
 import UploadModal from './components/UploadModal';
 import MyListings from './components/MyListings';
 import AuthScreen from './components/AuthScreen';
+import BrandingModal from './components/BrandingModal';
 import { MarketplaceItem, ItemStatus, ItemType, Message, User, ChatThread, Notification, Report, CarouselSlide } from './types';
 import { supabaseService } from './services/supabaseService';
 
@@ -30,8 +31,13 @@ const AppContent: React.FC = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isBrandingOpen, setIsBrandingOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
+  // App Branding State
+  const [appName, setAppName] = useState(() => localStorage.getItem('hub_app_name') || 'NITR Hub');
+  const [appLogo, setAppLogo] = useState(() => localStorage.getItem('hub_app_logo') || null);
+
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('hub_user');
     return savedUser ? JSON.parse(savedUser) : null;
@@ -59,7 +65,6 @@ const AppContent: React.FC = () => {
     return processedChats.some(m => !m.read);
   }, [processedChats]);
 
-  // Priority Sync: Slides and Items for Home Screen
   const syncCriticalData = async () => {
     if (!currentUser) return;
     try {
@@ -79,7 +84,6 @@ const AppContent: React.FC = () => {
     }
   };
 
-  // Secondary Sync: Messages and Notifications
   const syncSecondaryData = async () => {
     if (!currentUser) return;
     try {
@@ -97,10 +101,7 @@ const AppContent: React.FC = () => {
   const syncAllData = async (silent = false) => {
     if (!currentUser) return;
     if (!silent) setIsRefreshing(true);
-    
-    // Run both priority and secondary in parallel but let the UI know when it's okay to show
     await Promise.all([syncCriticalData(), syncSecondaryData()]);
-    
     if (!silent) setIsRefreshing(false);
   };
 
@@ -115,16 +116,13 @@ const AppContent: React.FC = () => {
       setIsLoading(false); 
       return; 
     }
-    // Initial Load - prioritizing speed for Home view
     syncCriticalData().then(() => {
-      // Fetch the rest after home is ready
       syncSecondaryData();
     });
   }, [currentUser?.id]);
 
   useEffect(() => {
     if (!currentUser) return;
-    // Periodic poll for real-time-ish updates
     const fastSyncInterval = setInterval(async () => {
       try {
         const [fetchedMessages, fetchedNotifs] = await Promise.all([
@@ -134,24 +132,9 @@ const AppContent: React.FC = () => {
         setChats(fetchedMessages);
         setNotifications(fetchedNotifs);
       } catch (err) {}
-    }, 5000); // Relaxed frequency to save battery/bandwidth, but enough for a hub
+    }, 5000);
     return () => clearInterval(fastSyncInterval);
   }, [currentUser?.id]);
-
-  useEffect(() => {
-    if (currentUser && activeOtherUserId) {
-      const chatWithUser = chats.filter(m => m.senderId === activeOtherUserId || m.receiverId === activeOtherUserId);
-      if (chatWithUser.length > 0) {
-        const latestMsg = chatWithUser[chatWithUser.length - 1];
-        const currentSeen = lastSeenMap[activeOtherUserId];
-        if (!currentSeen || new Date(latestMsg.timestamp) > new Date(currentSeen)) {
-          const newMap = { ...lastSeenMap, [activeOtherUserId]: new Date().toISOString() };
-          setLastSeenMap(newMap);
-          localStorage.setItem('hub_last_seen', JSON.stringify(newMap));
-        }
-      }
-    }
-  }, [activeOtherUserId, chats, currentUser?.id]);
 
   const handleLogin = async (user: User) => {
     setCurrentUser(user);
@@ -211,6 +194,14 @@ const AppContent: React.FC = () => {
     await supabaseService.sendMessage(currentUser.id, recipientId, itemId, text);
   };
 
+  const handleUpdateBranding = (name: string, logo: string | null) => {
+    setAppName(name);
+    setAppLogo(logo);
+    localStorage.setItem('hub_app_name', name);
+    if (logo) localStorage.setItem('hub_app_logo', logo);
+    else localStorage.removeItem('hub_app_logo');
+  };
+
   const chatThreads = useMemo(() => {
     if (!currentUser) return [];
     const groups: { [key: string]: Message[] } = {};
@@ -244,41 +235,34 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (!currentUser) return <AuthScreen onLogin={handleLogin} />;
+  if (!currentUser) return <AuthScreen onLogin={handleLogin} appName={appName} appLogo={appLogo} />;
 
   return (
     <div className="min-h-screen flex flex-col pb-20">
       <header className="px-6 py-4 flex justify-between items-center glass sticky top-0 z-40 border-b border-indigo-50/50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 overflow-hidden">
+             {appLogo ? (
+               <img src={appLogo} className="w-full h-full object-cover" alt="Logo" />
+             ) : (
+               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+             )}
           </div>
           <div>
-            <h1 className="text-lg font-black text-slate-800 tracking-tighter leading-none">NITR Hub</h1>
+            <h1 className="text-lg font-black text-slate-800 tracking-tighter leading-none">{appName}</h1>
             <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mt-0.5">Campus Marketplace</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={() => syncAllData()} 
-            disabled={isRefreshing}
-            className={`p-2 transition-all rounded-full hover:bg-indigo-50 ${isRefreshing ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'}`}
-            title="Refresh Data"
-          >
+          <button onClick={() => syncAllData()} disabled={isRefreshing} className={`p-2 transition-all rounded-full hover:bg-indigo-50 ${isRefreshing ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'}`} title="Refresh Data">
             <svg xmlns="http://www.w3.org/2000/svg" className={`w-6 h-6 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </button>
           
-          <button 
-            onClick={() => setIsInboxOpen(true)} 
-            className={`relative p-2 transition-all rounded-full ${hasUnreadMessages ? 'text-indigo-600 animate-pulse bg-indigo-50 ring-2 ring-indigo-200 ring-offset-2' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-            title="Messages"
-          >
+          <button onClick={() => setIsInboxOpen(true)} className={`relative p-2 transition-all rounded-full ${hasUnreadMessages ? 'text-indigo-600 animate-pulse bg-indigo-50 ring-2 ring-indigo-200 ring-offset-2' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`} title="Messages">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-            {hasUnreadMessages && (
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white shadow-sm"></span>
-            )}
+            {hasUnreadMessages && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white shadow-sm"></span>}
           </button>
 
           <Link to="/notifications" className="relative p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Notifications">
@@ -315,8 +299,9 @@ const AppContent: React.FC = () => {
         <ItemDetailModal item={items.find(i => i.id === viewDetailItemId)!} onClose={() => setViewDetailItemId(null)} onMessage={() => { const item = items.find(i=>i.id===viewDetailItemId); if(item) { setViewDetailItemId(null); setActiveOtherUserId(item.posterId); } }} onCheckout={async (order) => { await supabaseService.createOrder(order); }} onReport={async (r) => await supabaseService.submitReport(r)} currentUser={currentUser} onAddToCart={(i) => setCartItems(p=>[...p,i])} onUpdateStatus={handleUpdateStatus} onUpdateItem={handleUpdateItem} onDeleteListing={handleDeleteItem} />
       )}
       {isInboxOpen && <InboxModal threads={chatThreads} onClose={() => setIsInboxOpen(false)} onSelectThread={(id) => { setActiveOtherUserId(id); setIsInboxOpen(false); }} currentUser={currentUser} />}
-      {isProfileOpen && <UserProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onUpdateUser={handleUpdateUser} onLogout={() => { setCurrentUser(null); localStorage.removeItem('hub_user'); setIsProfileOpen(false); }} />}
+      {isProfileOpen && <UserProfileModal user={currentUser} onClose={() => setIsProfileOpen(false)} onUpdateUser={handleUpdateUser} onLogout={() => { setCurrentUser(null); localStorage.removeItem('hub_user'); setIsProfileOpen(false); }} onOpenBranding={() => { setIsProfileOpen(false); setIsBrandingOpen(true); }} />}
       {isUploadOpen && <UploadModal onClose={() => setIsUploadOpen(false)} onAdd={handleAddItem} type={ItemType.MARKETPLACE} currentUser={currentUser} />}
+      {isBrandingOpen && <BrandingModal onClose={() => setIsBrandingOpen(false)} currentName={appName} currentLogo={appLogo} onUpdate={handleUpdateBranding} />}
     </div>
   );
 };
